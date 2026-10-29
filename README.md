@@ -25,6 +25,9 @@ checks that every theorem uses only `propext`, `Classical.choice` and
 - `Schedule.lean`, `Liveness/` — the proposal schedule, run lemmas, fast-round
   finalization (`fast_round_finalizes`) and the good-round theorem
   (`good_round_confirms`).
+- `Liveness/Timed/` — timed executions with deadlines, the environment
+  (partial synchrony after `GST`, the honest owner's obligations), round
+  growth and the liveness theorem (`TExec.Env.liveness`).
 - `LeanLineraTest/` — concrete executions on a four-validator model, checked
   by `decide`.
 - `docs/design.md` — plan, design, mapping to the paper, findings.

@@ -34,9 +34,9 @@ for each:
 | Lem. honest-single-leader | every owner is the sole eligible proposer in a single-leader round after any round (round-robin, no super owner) | `Config.exists_sole_eligible` | done |
 | Lem. progress (core) | in a good round the proposal is validated, then confirmed | `good_round_confirms` | done |
 | Alg. client_propose rule | the newest locking block re-proposed passes every lock | `acceptable_of_highest_lb`, `acceptable_of_fast_lb`, `acceptable_of_no_lock`, `wellFormed_of_highest_lb` | done |
-| Lem. round-growth | a round without `ConfCert` yields a `TimeoutCert`; all honest validators advance | `Liveness.Timed.round_advances` | phase 4 |
-| Lem. long-rounds | some round after GST is long enough | `Liveness.Timed.exists_long_round` | phase 4 |
-| Thm. liveness | an honest active owner + partial synchrony ⇒ a block is finalized | `Liveness.finalizes` | phase 4 |
+| Lem. round-growth | every round is eventually reached by every honest validator, or a block is confirmed | `TExec.Env.reach_round` (`advance_single`, `advance_multi_list`) | done |
+| Lem. long-rounds | a single-leader round beyond `firstSL + Δ + 2L + 2` lasts long enough (linear durations) | inside `TExec.Env.liveness` (`hdbig`) | done |
+| Thm. liveness | an honest active owner + partial synchrony ⇒ a block is confirmed (no fast round) | `TExec.Env.liveness` | done |
 
 Out of scope: cross-chain messaging, execution semantics (`Exec`), ownership
 changes between heights (the instance is single-shot, so the owner set is a
@@ -363,6 +363,17 @@ Already visible from reading the appendix against the algorithms:
   which is all the liveness proof uses.
 - **F5.** Liveness needs the honest owner to be *active* (§Model says so;
   Thm. liveness omits it).
+- **F7. Fixed grace period.** The implementation waits for a quorum of
+  responses plus a fixed `quorum_grace_period` when reading locking
+  blocks. Under partial synchrony with unknown `Δ`, an adversary that
+  delivers Byzantine responses first and one honest validator's response
+  after the grace period can hide that validator's higher locking block
+  in every round, and its lock then refuses every re-proposal; with the
+  Byzantine validators abstaining, no validation quorum forms. The paper's
+  original "grace period that grows with `r`" (restored in the amended
+  Alg. client_propose only as "a grace period") avoids this; the timed
+  model assumes it through the obligation `propose` (the owner's proposal
+  is built from locking blocks that include every honest validator's).
 - **F6. Fast-round locks are invisible to the client's query.** A
   confirmation vote in a fast round locks the validator on `(B₀, 0)` with
   no validation certificate, so `knownValCert` never records it. After a
@@ -472,7 +483,7 @@ Client side, resolving the Phase 4 questions:
 | 1 | `Committee`, `Messages`, `Validator`, `Protocol`; 4-validator witness executions | done |
 | 2 | invariant, `valCert_unique`, `safety`, `finalized_agree`, `vote_of_eligible`, `lock_validate`, monotonicity | done |
 | 3 | `Schedule`, `Liveness/Runs`, `Liveness/Fast`, `Liveness/Core` | done |
-| 4 | timed layer, round-growth, long-rounds, liveness theorem | open |
+| 4 | timed layer, round-growth, long-rounds, liveness theorem | done (no fast round) |
 | 5 | report.md with statements copied from source | open |
 
 The invariant as implemented (`Safety/Invariants.lean`, `VInv`) has the six
@@ -494,7 +505,39 @@ lemma of Phase 3 consumes.
   (`ChainManager`, the validator-side per-height state). Consult it for
   protocol questions before asking.
 
-### Phase 4 design points to settle before starting
+### Phase 4 as implemented (2026-10-29)
+
+`Liveness/Timed/Exec.lean`: time is a tick counter; an execution is a state
+sequence with at most one honest step per tick; a validator's entry into
+its current round is the first tick at which it held it, and a timeout
+vote may be attempted only once entry plus the round's duration has
+passed (`Timeouts.dur`: fast round optional, last multi-leader round
+`base`, `j`-th single-leader round `base + j·inc`). The key lemma
+`le_round_or_tc`: a validator past a single-leader round got there through
+a timeout certificate for it that existed strictly earlier.
+
+`Liveness/Timed/Env.lean`: the environment `Env` — `GST`, `Δ`, `L`, the
+honest owner `o` and its per-round proposal — with obligations
+`leave_multi`, `timeout`, `tc`, `propose`, `cert`, `leader`, `inc_pos`,
+`no_fast`, each allowing the escape "a block has been confirmed". The
+re-proposal rule `JustRule` is the paper's.
+
+`Liveness/Timed/Liveness.lean`: `Env.reach_round` (round growth), the
+window invariant `WinAt` of the good round (`winAt_step`), and
+`Env.liveness`. The good round `r` is chosen beyond every round held at
+`GST` and with duration `≥ Δ + 2L + 2`; the first timeout certificate for
+`r − 1` then appears after `GST`, everyone enters `r` within `Δ`, nobody
+can leave before the duration, the proposal read at `t_q` passes every
+lock (locks are frozen in the window except by confirming the owner's own
+block), and the certificate is confirmed by all.
+
+Not covered by the timed theorem: the fast round (`no_fast`), the
+validator fallback rounds, open multi-leader rounds. The obligations
+`propose` and `cert` abstract the owner's loop into the constant `L`; a
+model of the owner as a state machine with polling and the grace period
+would discharge them, and is where F7 below would surface.
+
+### Phase 4 design points settled by the implementation
 
 1. **Owner loop ordering.** Forward `TimeoutCert(r−1)` first, then query
    `knownValCert`, then propose (F2). The paper's order is query first.
