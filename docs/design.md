@@ -346,6 +346,84 @@ Already visible from reading the appendix against the algorithms:
   fast-round extension; `acceptable_of_highest_known` is stated under the
   hypothesis that no honest lock comes from a fast round.
 
+## 7b. Paper versus implementation (`~/git/linera-protocol`, read 2026-10-29)
+
+Read against `linera-chain/src/manager.rs` (`ChainManager`),
+`linera-core/src/client/chain_client/mod.rs` (proposal loop) and
+`linera-base/src/ownership.rs` (rounds and timeouts). The Lean model follows
+the paper; each item says what the implementation does instead.
+
+Structure absent from the paper:
+
+- **I1. Round structure.** Rounds are `Fast < MultiLeader(i) < SingleLeader(j)
+  < Validator(k)`. Multi-leader rounds have no timeout except the last one;
+  a multi-leader round ends as soon as any valid proposal for a later round
+  is seen ("multi-leader rounds can always be skipped"), with no timeout
+  certificate. The paper gives every round a deadline and advances only on
+  certificates.
+- **I2. Validator (fallback) rounds.** After `fallback_duration` of an
+  unhandled tracked message, validators vote to put the chain in fallback
+  mode, where validators themselves are the leaders (`vote_fallback`).
+- **I3. Leader selection.** Weighted pseudo-random (`seed` = block height,
+  optional `first_leader`), not round-robin. "The honest owner leads
+  infinitely often" is then a probabilistic statement, or an assumption on
+  the schedule, not a theorem of arithmetic as in `Config.exists_sole_eligible`.
+- **I4. Open multi-leader rounds and super owners.** Multi-leader rounds may
+  be open to anyone (`open_multi_leader_rounds`); super owners may propose
+  in every non-validator round, and may open a later round while the fast
+  round has not timed out.
+- **I5. Timeouts.** Single-leader round `r` lasts `base_timeout +
+  timeout_increment · r`: linear growth with a configured slope (relevant to
+  F3). The fast round has its own optional duration.
+- **I6. Unlocking-round attestation.** A validation vote signs the round of
+  the certificate it relied on and a commitment to that quorum, for
+  accountability; this is why the lock rule below is strict.
+
+Validator rules that differ from Algs. on_proposal / on_certificate /
+on_timeout:
+
+- **I7. Proposals advance the round.** In multi-leader rounds and the first
+  single-leader round a proposal for a round `≥ current_round` is accepted
+  and sets the round; the paper requires `r = r_cur`. Later single-leader
+  rounds require equality, as in the paper.
+- **I8. The lock rule is on the latest confirmed vote, strict for a
+  different block.** A proposal of a different block needs a carried
+  certificate with `confirmed_vote.round < certificate.round`; the same block
+  needs `≤`. The paper has `C.round ≥ lock.r` for a different block.
+  Equivalent given unique validation per round (a conflicting certificate at
+  the confirmation round cannot exist), so the safety theorem transfers.
+- **I9. `locking_block` is not the lock.** It is the highest validated
+  certificate seen, updated from carried certificates and from received
+  validated-block certificates whether or not the validator votes, and also
+  the fast-round proposal when voting to confirm it. Proposals must be
+  strictly newer than it. It is what is served to clients; the paper's
+  `knownValCert[r]` is a per-round store separate from the lock.
+- **I10. Timeout votes.** Only for `round == current_round` (paper: `r ≥
+  r_cur`). A timeout vote does not prevent a later confirmation vote in the
+  same round; only a timeout certificate (which moves the round) does. The
+  paper's on_certificate refuses after `timedOut[r]`. Both are safe; the
+  Lean safety proof uses only `votedConf`, not `timedOut`, so dropping the
+  guard would not affect it.
+- **I11. One vote kept per kind.** Validators keep only the latest
+  validation vote and the latest confirmation vote (validation rounds
+  strictly increasing; the validation vote is cleared on confirming); the
+  paper's per-round flags are equivalent under round monotonicity.
+
+Client side, resolving the Phase 4 questions:
+
+- **I12. Clients learn timeout certificates and locks from validators.**
+  `ChainManagerInfo` carries the latest timeout certificate, the locking
+  block (fast proposals included) and the validator's latest vote. The
+  client adopts the timeout certificate (so the owner behaviour of F3 is the
+  second option, with bounded entry spread) and re-proposes the locking
+  block, fast proposals as `OriginalProposal::Fast` (which closes F6).
+- **I13. Client order.** `process_pending_block`: if the local deadline has
+  passed, request a timeout certificate and communicate it to validators;
+  then re-read the manager values; if the locking block is in the current
+  round, finalize it; else re-propose the locking block or a new block.
+  Timeout certificate before query, as F2 requires. The paper's Alg.
+  client_propose queries first.
+
 ## 8. Phases and order of work
 
 | Phase | Content | Status |
