@@ -1,4 +1,6 @@
-# Machine-checked safety and liveness of the Linera per-height consensus
+---
+title: Machine-checked safety and liveness of the Linera per-height consensus
+---
 
 > **Provenance.** Code and prose in this project were co-written with
 > heavy LLM assistance. The Lean proofs are machine-checked — the kernel
