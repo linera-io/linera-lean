@@ -381,10 +381,21 @@ theorem Env.liveness : ∃ t, ex.Done t := by
     · exact h.trans (ex.cur_mono v hu₁)
     · exact absurd h hdone₁
   -- the owner's proposal
-  obtain ⟨P, tq, htq₁, htq₂, hprop, hPr, hPo, hPv, hrule, hatt, hbefore⟩ :=
+  obtain ⟨P, tq, hcurq, htq₂, hprop, hPr, hPo, hPv, hrule, hatt, hbefore⟩ :=
     env.propose (tc + env.Δ) (by omega) r hrs hsole
       (fun v hv => hcur_w _ le_rfl (by omega) v hv) hdone₁
   have htq_d : tq ≤ tc + d := by omega
+  -- everybody stays at `r` from `tq` to `tc + d`
+  have hcur_w' : ∀ u, tq ≤ u → u ≤ tc + d → ∀ v ∈ Q.honest, ex.cur v u = r := by
+    intro u hu₁ hu₂ v hv
+    exact le_antisymm (hle_r u hu₂ v hv) ((hcurq v hv).symm ▸ ex.cur_mono v hu₁)
+  -- `tq` is after GST, since nobody held `r` at GST
+  have htq_gst : env.GST < tq := by
+    by_contra hle; push Not at hle
+    have h2 := ex.cur_mono w₀ hle
+    have h3 := hRle w₀ hw₀
+    have h4 := hcurq w₀ hw₀
+    omega
   -- every honest validation vote in `r` is for `P.block`, and none exists before `tq`
   have hvalP : ∀ u, ∀ v ∈ Q.honest, ∀ B, (ex.st u).HSig v (.val B r) → B = P.block := by
     intro u v hv B h
@@ -402,7 +413,7 @@ theorem Env.liveness : ∃ t, ex.Done t := by
     · have hc := (ex.inv tq v hv).lb_cert B ρ hlb
       obtain ⟨u, hu, hsig⟩ := hc.exists_honest_HSig
       have h1 : ρ ≤ ex.cur u tq := (ex.inv tq u hu).val_le_cur B ρ hsig
-      rw [hcur_w tq htq₁ htq_d u hu] at h1
+      rw [hcurq u hu] at h1
       rcases Nat.lt_or_eq_of_le h1 with h | rfl
       · exact h
       · exact absurd hsig (hno_val tq le_rfl u hu B)
@@ -457,7 +468,7 @@ theorem Env.liveness : ∃ t, ex.Done t := by
       rcases hst : step cfg (ex.st u) w i with _ | s'
       · exact ih
       simp only [Option.getD_some]
-      refine winAt_step hr1 hnfr (ex.inv u) hv (hcur_w u (by omega) (by omega) v hv)
+      refine winAt_step hr1 hnfr (ex.inv u) hv (hcur_w' u (by omega) (by omega) v hv)
         (fun w' hw' => hle_r u (by omega) w' hw') hst
         (fun P' hi => by subst hi; exact env.fast_quiet u (by omega) w P' hact) ?_ ih
       intro u' hu' B h
@@ -479,13 +490,13 @@ theorem Env.liveness : ∃ t, ex.Done t := by
         exact Or.inr (Or.inr (Done.mono ex (by omega) (ex.done_of_finalized hv hB)))
       push Not at hfin
       have hfresh : ((ex.st tv).locals v).Fresh r := by
-        refine ⟨hcur_w tv (by omega) (by omega) v hv, ?_, hlb, ?_,
+        refine ⟨hcur_w' tv (by omega) (by omega) v hv, ?_, hlb, ?_,
           Option.eq_none_iff_forall_ne_some.2 hfin⟩
         · intro vv hvv'
           rw [hvv] at hvv'
           have hs := (ex.inv tq v hv).valVote_sig vv hvv'
           have h1 : vv.2 ≤ ex.cur v tq := (ex.inv tq v hv).val_le_cur vv.1 vv.2 hs
-          rw [hcur_w tq htq₁ htq_d v hv] at h1
+          rw [hcurq v hv] at h1
           rcases Nat.lt_or_eq_of_le h1 with h | h
           · exact h
           · rw [h] at hs; exact absurd hs (hno_val tq le_rfl v hv vv.1)
@@ -506,7 +517,8 @@ theorem Env.liveness : ∃ t, ex.Done t := by
     · exact Or.inr (Or.inl (ex.HSig_mono (by omega) h))
   by_cases hdone₃ : ex.Done (tc + env.Δ + env.L + 1)
   · exact ⟨_, hdone₃⟩
-  -- the validation certificate exists
+  -- the owner can hold the validation certificate: every honest validator voted, or one
+  -- confirmed and reports it as its locking block
   have hvc : (ex.st (tc + env.Δ + env.L + 1)).ValCert P.block r := by
     by_cases hall : ∀ v ∈ Q.honest, (ex.st (tc + env.Δ + env.L + 1)).HSig v (.val P.block r)
     · exact HasCert_of_honest hall
@@ -516,11 +528,37 @@ theorem Env.liveness : ∃ t, ex.Done t := by
       · exact absurd h hnv
       · exact (ex.inv _ v hv).conf_valCert P.block r h hnfr
       · exact absurd h hdone₃
+  have hevid : (∀ v ∈ Q.honest, (ex.st (tc + env.Δ + env.L + 1)).HSig v (.val P.block r)) ∨
+      ∃ v ∈ Q.honest, ((ex.st (tc + env.Δ + env.L + 1)).locals v).lb = some (.cert P.block r) := by
+    by_cases hall : ∀ v ∈ Q.honest, (ex.st (tc + env.Δ + env.L + 1)).HSig v (.val P.block r)
+    · exact Or.inl hall
+    · push Not at hall
+      obtain ⟨v, hv, hnv⟩ := hall
+      right
+      refine ⟨v, hv, ?_⟩
+      rcases hatt' v hv with h | h | h
+      · exact absurd h hnv
+      · -- a confirmation in `r` makes the locking block a certificate of round `r`
+        have hvi := ex.inv (tc + env.Δ + env.L + 1) v hv
+        obtain ⟨lb, hlb, hle⟩ := hvi.conf_bound P.block r h
+        rw [Option.mem_def] at hlb
+        rcases lb with ⟨B', ρ⟩ | B'
+        · have hcert' := hvi.lb_cert B' ρ hlb
+          obtain ⟨u, hu, hsig⟩ := hcert'.exists_honest_HSig
+          have h1 : ρ ≤ ex.cur u _ := (ex.inv _ u hu).val_le_cur B' ρ hsig
+          rw [hcur_w' _ (by omega) (by omega) u hu] at h1
+          have hρ : ρ = r := le_antisymm h1 hle
+          subst hρ
+          rw [(ex.inv _).valCert_unique hcert' hvc] at hlb
+          exact hlb
+        · change r ≤ 0 at hle; omega
+      · exact absurd h hdone₃
   -- it reaches everyone, and everyone confirms
   have hconf : ∀ v ∈ Q.honest, (ex.st (tc + env.Δ + 2 * env.L + 2)).HSig v (.conf P.block r) ∨
       ex.Done (tc + env.Δ + 2 * env.L + 2) := by
     intro v hv
-    obtain ⟨tv, htv₁, htv₂, hactv⟩ := env.cert _ (by omega) r hrs hsole P.block hvc v hv
+    obtain ⟨tv, htv₁, htv₂, hactv⟩ := env.cert _ (by omega) r hrs hsole P.block
+      (fun w hw => hcur_w' _ (by omega) (by omega) w hw) hevid v hv
     have hw := hwin v hv tv (by omega) (by omega)
     have hmono : tv + 1 ≤ tc + env.Δ + 2 * env.L + 2 := by omega
     by_cases hc : (ex.st tv).HSig v (.conf P.block r)
@@ -538,14 +576,14 @@ theorem Env.liveness : ∃ t, ex.Done t := by
       intro vv hvv'
       have h1 := (ex.inv tv v hv).val_le_cur vv.1 vv.2 ((ex.inv tv v hv).valVote_sig vv hvv')
       change vv.2 ≤ ex.cur v tv at h1
-      rw [hcur_w tv (by omega) (by omega) v hv] at h1
+      rw [hcur_w' tv (by omega) (by omega) v hv] at h1
       exact h1
     have hok : ((ex.st tv).locals v).valCertOk P.block r := by
       refine ⟨Option.eq_none_iff_forall_ne_some.2 hfin, ?_, hvv, hlb⟩
       intro hlk
       exact hc ((ex.inv tv v hv).lock_conf (P.block, r) (by rw [hlk]; rfl))
     have hcv : ((ex.st tv).locals v).confVotes r := by
-      change ex.cur v tv ≤ r; rw [hcur_w tv (by omega) (by omega) v hv]
+      change ex.cur v tv ≤ r; rw [hcur_w' tv (by omega) (by omega) v hv]
     have hstep := step_conf (cfg := cfg) (ex.HasCert_mono (by omega) hvc) hok hcv
     have hsig : (ex.st (tv + 1)).HSig v (.conf P.block r) := by
       rw [ex.succ, hactv]; simp only [stepOpt, hstep, Option.getD_some]

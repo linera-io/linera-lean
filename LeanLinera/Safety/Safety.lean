@@ -118,10 +118,11 @@ theorem not_valCert_fast {B : Block} {r : Round} (hf : cfg.IsFast r) : ¬ s.ValC
   fun h => (Inv.reachable hr).not_valCert_fast hf h
 
 /-- **Authenticity** (`model.tex`): an honest validation vote answers a
-proposal by an owner eligible in that round. -/
+valid proposal by an owner eligible in that round. -/
 theorem vote_of_eligible {e : Sig V Owner Block} (he : e ∈ s.log) (hv : e.signer ∈ Q.honest)
     {B : Block} {r : Round} (hm : e.msg = .val B r) :
-    ∃ P, e.prop = some P ∧ P.block = B ∧ P.round = r ∧ cfg.Eligible r P.owner :=
+    ∃ P, e.prop = some P ∧ P.block = B ∧ P.round = r ∧ cfg.Eligible r P.owner ∧
+      cfg.Valid P.block :=
   (((Inv.reachable hr) e.signer hv).val_ghost e he rfl B r hm).prop_elig
 
 /-- **Authenticity** in the fast round: an honest confirmation vote there

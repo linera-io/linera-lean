@@ -495,7 +495,7 @@ Client side, resolving the Phase 4 questions:
 | 1 | `Committee`, `Messages`, `Validator`, `Protocol`; 4-validator witness executions | done |
 | 2 | invariant, `valCert_unique`, `safety`, `finalized_agree`, `vote_of_eligible`, `lock_validate`, monotonicity | done |
 | 3 | `Schedule`, `Liveness/Runs`, `Liveness/Fast`, `Liveness/Core` | done |
-| 4 | timed layer, round-growth, long-rounds, liveness theorem | done (fast round included) |
+| 4 | timed layer, round-growth, long-rounds, liveness theorem | done (fast round included; owner's loop and network in `Owner.lean`) |
 | 5 | report.md with statements copied from source (`make report` checks them) | done |
 
 The invariant as implemented (`Safety/Invariants.lean`, `VInv`) has the six
@@ -547,8 +547,19 @@ can leave before the duration, the proposal read at `t_q` passes every
 lock (locks are frozen in the window except by confirming the owner's own
 block), and the certificate is confirmed by all.
 
+`Liveness/Timed/Owner.lean`: the owner as a strategy (`Want`: timeout
+requests after deadlines, forwarding of the newest timeout certificate it
+can hold, the proposal built from the first view in which everyone was in
+the round, forwarding of a validation certificate it can hold) and the
+network as a delivery bound (`deliver`), from which `OwnerEnv.toEnv`
+derives the environment with `Δ, L := 2Δ + 1`. The abstract obligations
+`tc_known`/`tc_honest` replace the earlier `tc`: an owner can only forward
+a certificate recorded by an honest validator or formed from all honest
+timeout votes, never one assembled by Byzantine validators alone.
+
 Not covered by the timed theorem: the validator fallback rounds, open
-multi-leader rounds. The obligations
+multi-leader rounds, the owner's behaviour in multi-leader rounds
+(`leave_multi` stays an obligation), an explicit message layer. The obligations
 `propose` and `cert` abstract the owner's loop into the constant `L`; a
 model of the owner as a state machine with polling and the grace period
 would discharge them, under the assumption recorded as F7 below.

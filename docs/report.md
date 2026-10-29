@@ -345,18 +345,24 @@ structure Env where
   honest validator within `Δ` (the owner assembles and forwards it). -/
   tc_honest : ∀ t, GST ≤ t → ∀ τ, (∀ v ∈ Q.honest, (ex.st t).HSig v (.time τ)) →
     ∀ w ∈ Q.honest, ∃ t', t ≤ t' ∧ t' ≤ t + Δ ∧ (τ < ex.cur w t' ∨ ex.Done t')
-  /-- The owner's proposal in a round it leads solely reaches everyone within `L`. -/
+  /-- The owner's proposal in a round it leads solely reaches everyone within `L`. It
+  is built by the re-proposal rule from the locking blocks at a tick `t_q` at which
+  every honest validator was in the round, and attempted only from `t_q` on. -/
   propose : ∀ t, GST ≤ t → ∀ r, cfg.IsSingle r → (∀ o', cfg.Eligible r o' ↔ o' = o) →
     (∀ v ∈ Q.honest, ex.cur v t = r) → ¬ ex.Done t →
-    ∃ P t_q, t ≤ t_q ∧ t_q ≤ t + L ∧ prop r = some P ∧ P.round = r ∧ P.owner = o ∧
-      cfg.Valid P.block ∧ JustRule cfg (ex.st t_q) P ∧
+    ∃ P t_q, (∀ v ∈ Q.honest, ex.cur v t_q = r) ∧ t_q ≤ t + L ∧ prop r = some P ∧
+      P.round = r ∧ P.owner = o ∧ cfg.Valid P.block ∧ JustRule cfg (ex.st t_q) P ∧
       (∀ v ∈ Q.honest, ∃ t', t_q ≤ t' ∧ t' ≤ t + L ∧ ex.act t' = some (v, .proposal P)) ∧
       (∀ t' < t_q, ∀ v, ex.act t' ≠ some (v, .proposal P))
-  /-- A validation certificate for a block in a round the owner leads solely reaches
-  everyone within `L`. -/
+  /-- A validation certificate for a block in a round the owner leads solely, once every
+  honest validator is in the round and the owner can hold the certificate (every honest
+  validator voted for it, or one reports it as its locking block), reaches everyone
+  within `L`. -/
   cert : ∀ t, GST ≤ t → ∀ r, cfg.IsSingle r → (∀ o', cfg.Eligible r o' ↔ o' = o) → ∀ B,
-    (ex.st t).ValCert B r → ∀ v ∈ Q.honest,
-      ∃ t', t ≤ t' ∧ t' ≤ t + L ∧ ex.act t' = some (v, .valCert B r)
+    (∀ v ∈ Q.honest, ex.cur v t = r) →
+    ((∀ v ∈ Q.honest, (ex.st t).HSig v (.val B r)) ∨
+      ∃ v ∈ Q.honest, ((ex.st t).locals v).lb = some (.cert B r)) →
+    ∀ v ∈ Q.honest, ∃ t', t ≤ t' ∧ t' ≤ t + L ∧ ex.act t' = some (v, .valCert B r)
   /-- The owner is the sole leader of single-leader rounds beyond any bound. -/
   leader : ∀ N, ∃ r, N ≤ r ∧ cfg.IsSingle r ∧ ∀ o', cfg.Eligible r o' ↔ o' = o
   /-- Round durations grow. -/
@@ -381,12 +387,12 @@ def JustRule (cfg : Config Owner Block) (s : State V Owner Block) (P : Proposal 
     Prop
 ```
 
-The obligations `propose` and `cert` abstract the owner's loop into the
-constant `L`; `propose` also assumes the owner reads every honest
-validator's locking block (design.md, F7). The fast round is covered
-under `fast_honest` and `fast_quiet`: the super owner proposes a single
-fast block, and no fast-round proposal is still in flight after `GST`;
-the first is the paper's hypothesis that no super owner equivocates.
+The obligations `timeout`, `tc_known`, `tc_honest`, `propose` and `cert`
+abstract the owner's loop into the constants `Δ` and `L`; section 4.4
+discharges them from the loop itself. The fast round is covered under
+`fast_honest` and `fast_quiet`: the super owner proposes a single fast
+block, and no fast-round proposal is still in flight after `GST`; the
+first is the paper's hypothesis that no super owner equivocates.
 
 ### 4.3 Round growth and liveness
 
@@ -443,10 +449,88 @@ window except by confirming the owner's own block; every honest
 validator validates or confirms it, the validation certificate exists,
 reaches everyone, and every honest validator confirms.
 
+### 4.4 The owner's loop and the network
+
+`Owner.lean` states the owner as a strategy and the network as a delivery
+bound, and derives the environment of 4.2. The owner's view at tick `t`
+is the state at `t − Δ`. From its view it wants a bounded set of messages
+delivered (Algorithm client_propose): a timeout vote from every validator
+whose deadline has passed; the newest timeout certificate it can hold, to
+everyone; once every honest validator is in a single-leader round it is
+eligible in, its proposal for that round, built by the re-proposal rule
+from the first view in which everyone was in the round; and a validation
+certificate it can hold for that round.
+
+```lean
+def Want (ow : OwnerData cfg) (u : ℕ) (v : V) (i : Input Owner Block) : Prop :=
+  v ∈ Q.honest ∧
+  ((∃ d, i = .timeout (ex.cur v u) ∧ tm.dur cfg (ex.cur v u) = some d ∧
+      ex.entry v u + d ≤ u) ∨
+   (∃ τ, i = .timeoutCert τ ∧ KnownMax (ex.st u) τ) ∨
+   (∃ r, i = .proposal (ex.prop ow r) ∧ cfg.IsSingle r ∧ cfg.Eligible r ow.o ∧
+      AllAt (ex.st u) r) ∨
+   (∃ B r, i = .valCert B r ∧ AllAt (ex.st u) r ∧
+      ((∀ w ∈ Q.honest, (ex.st u).HSig w (.val B r)) ∨
+        ∃ w ∈ Q.honest, ((ex.st u).locals w).lb = some (.cert B r))))
+```
+
+A wanted message is attempted within `Δ` unless stale (a timeout request
+for a round the validator has left), and the owner's proposals are the
+only proposals signed by it:
+
+```lean
+structure OwnerEnv where
+  /-- The owner. -/
+  ow : OwnerData cfg
+  /-- The global stabilisation time. -/
+  GST : ℕ
+  /-- The delay bound after `GST`: the owner's view is at most `Δ` old, and a wanted
+  message is attempted within `Δ`. -/
+  Δ : ℕ
+  /-- A wanted message is attempted by its validator within `Δ`, unless stale. -/
+  deliver : ∀ t, GST ≤ t → ∀ v ∈ Q.honest, ∀ i, ex.Want ow (t - Δ) v i →
+    ∃ t', t ≤ t' ∧ t' ≤ t + Δ ∧ (ex.act t' = some (v, i) ∨ Stale (ex.st t') v i)
+  /-- Every proposal signed by the owner was wanted by it. -/
+  honest_sends : ∀ t v P, ex.act t = some (v, .proposal P) → P.owner = ow.o →
+    ∃ t', t' ≤ t ∧ ex.Want ow (t' - Δ) v (.proposal P)
+  /-- A multi-leader round is left within `2Δ + 1`. -/
+  leave_multi : ∀ t, GST ≤ t → ∀ v ∈ Q.honest, ex.cur v t < cfg.firstSL →
+    ∃ t', t ≤ t' ∧ t' ≤ t + (2 * Δ + 1) ∧ (ex.cur v t < ex.cur v t' ∨ ex.Done t')
+  /-- The owner is the sole leader of single-leader rounds beyond any bound. -/
+  leader : ∀ N, ∃ r, N ≤ r ∧ cfg.IsSingle r ∧ ∀ o', cfg.Eligible r o' ↔ o' = ow.o
+  /-- Round durations grow. -/
+  inc_pos : 0 < tm.inc
+  /-- The super owner does not equivocate. -/
+  fast_honest : ∀ t v P, ex.act t = some (v, .proposal P) →
+    (cfg.IsFast P.round ∨ P.just = .fast) → ow.fastBlock = some P.block
+  /-- No fast-round proposal is still in flight after `GST`. -/
+  fast_quiet : ∀ t, GST ≤ t → ∀ v P, ex.act t = some (v, .proposal P) → ¬ cfg.IsFast P.round
+```
+
+The re-proposal rule always yields a proposal (`exists_ruleProposal`),
+and the owner's proposal for a round is the one built from the first view
+in which every honest validator was in it. The derived environment has
+`Δ` and `L` both equal to `2Δ + 1`:
+
+```lean
+noncomputable def OwnerEnv.toEnv (oe : OwnerEnv ex) : ex.Env
+```
+
+```lean
+theorem OwnerEnv.liveness (oe : OwnerEnv ex) : ∃ t, ex.Done t := oe.toEnv.liveness
+```
+
+What remains assumed about the owner is that it polls continuously (its
+view is at most `Δ` old), that it reads every honest validator's locking
+block before proposing (design.md, F7; the obligation `deliver` on the
+proposal built from such a view), and that it leaves multi-leader rounds
+(`leave_multi`).
+
 ## 5. What is not covered
 
 The validator fallback rounds and
 the pseudo-random leader schedule of the implementation (the schedule is
 an abstract parameter with a fairness obligation); open multi-leader
-rounds; the unlocking-round attestation; the owner as an explicit state
-machine discharging the obligations `propose` and `cert`.
+rounds; the unlocking-round attestation; the owner's behaviour in
+multi-leader rounds (the obligation `leave_multi`); and an explicit
+message layer below the delivery bound `deliver`.

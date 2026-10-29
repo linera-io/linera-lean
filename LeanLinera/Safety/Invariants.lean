@@ -41,8 +41,9 @@ a confirmation by `v` from before `r`; and every confirmation by `v` from
 before `r` is at or below that lock. -/
 structure ValGhost (cfg : Config Owner Block) (s : State V Owner Block) (v : V)
     (e : Sig V Owner Block) (B : Block) (r : Round) : Prop where
-  /-- The vote answered a proposal of `B` in `r` by an eligible owner. -/
-  prop_elig : ∃ P, e.prop = some P ∧ P.block = B ∧ P.round = r ∧ cfg.Eligible r P.owner
+  /-- The vote answered a valid proposal of `B` in `r` by an eligible owner. -/
+  prop_elig : ∃ P, e.prop = some P ∧ P.block = B ∧ P.round = r ∧ cfg.Eligible r P.owner ∧
+    cfg.Valid P.block
   /-- A carried certificate certifies `B`, predates `r`, and exists. -/
   cert_ok : ∀ B' ρ, e.just = .cert B' ρ → B' = B ∧ ρ < r ∧ s.ValCert B' ρ
   /-- A lock on a different block was released by a strictly later certificate. -/
@@ -69,6 +70,8 @@ structure VInv (cfg : Config Owner Block) (s : State V Owner Block) (v : V) : Pr
   valVote_sig : ∀ vv ∈ (s.locals v).valVote, s.HSig v (.val vv.1 vv.2)
   /-- The latest timeout vote was signed. -/
   timeoutVote_sig : ∀ τ ∈ (s.locals v).timeoutVote, s.HSig v (.time τ)
+  /-- A recorded timeout certificate is below the current round. -/
+  tc_lt_cur : ∀ τ ∈ (s.locals v).tc, τ < (s.locals v).cur
   /-- At most one validation vote per round. -/
   val_unique : ∀ B₁ B₂ ρ, s.HSig v (.val B₁ ρ) → s.HSig v (.val B₂ ρ) → B₁ = B₂
   /-- At most one confirmation vote per round. -/
@@ -113,6 +116,7 @@ theorem VInv.init (cfg : Config Owner Block) (v : V) :
   time_le_cur ρ h := absurd h (HSig_init v _)
   valVote_sig vv h := by simp [State.init, Local.init] at h
   timeoutVote_sig τ h := by simp [State.init, Local.init] at h
+  tc_lt_cur τ h := by simp [State.init, Local.init] at h
   val_unique B₁ B₂ ρ h := absurd h (HSig_init v _)
   conf_unique B₁ B₂ ρ h := absurd h (HSig_init v _)
   conf_valCert B ρ h := absurd h (HSig_init v _)
@@ -203,6 +207,7 @@ theorem VInv.sign_of_ne {cfg : Config Owner Block} {s : State V Owner Block} {v 
   time_le_cur ρ hs := hv.time_le_cur ρ ((HSig_sign_of_ne h _).1 hs)
   valVote_sig vv hvv := (hv.valVote_sig vv hvv).sign e
   timeoutVote_sig τ hτ := (hv.timeoutVote_sig τ hτ).sign e
+  tc_lt_cur := hv.tc_lt_cur
   val_unique B₁ B₂ ρ h₁ h₂ :=
     hv.val_unique B₁ B₂ ρ ((HSig_sign_of_ne h _).1 h₁) ((HSig_sign_of_ne h _).1 h₂)
   conf_unique B₁ B₂ ρ h₁ h₂ :=
@@ -235,6 +240,7 @@ theorem VInv.set_of_ne {cfg : Config Owner Block} {s : State V Owner Block} {v w
   time_le_cur ρ hs := by rw [locals_set_of_ne _ _ h]; exact hv.time_le_cur ρ hs
   valVote_sig vv hvv := by rw [locals_set_of_ne _ _ h] at hvv; exact hv.valVote_sig vv hvv
   timeoutVote_sig τ hτ := by rw [locals_set_of_ne _ _ h] at hτ; exact hv.timeoutVote_sig τ hτ
+  tc_lt_cur τ hτ := by rw [locals_set_of_ne _ _ h] at hτ ⊢; exact hv.tc_lt_cur τ hτ
   val_unique := hv.val_unique
   conf_unique := hv.conf_unique
   conf_valCert := hv.conf_valCert
