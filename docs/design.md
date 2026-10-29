@@ -333,6 +333,17 @@ Already visible from reading the appendix against the algorithms:
   which is all the liveness proof uses.
 - **F5.** Liveness needs the honest owner to be *active* (§Model says so;
   Thm. liveness omits it).
+- **F6. Fast-round locks are invisible to the client's query.** A
+  confirmation vote in a fast round locks the validator on `(B₀, 0)` with
+  no validation certificate, so `knownValCert` never records it. After a
+  timed-out fast round, Alg. client_propose cannot learn `B₀`; a proposal
+  of another block without a certificate is refused by every validator so
+  locked, and one with a certificate from round `0` cannot exist. Liveness
+  after a fast round therefore needs the super owner itself to re-propose
+  `B₀`, or validators to report their locks (as the implementation does).
+  This does not contradict the paper, whose Thm. liveness excludes the
+  fast-round extension; `acceptable_of_highest_known` is stated under the
+  hypothesis that no honest lock comes from a fast round.
 
 ## 8. Phases and order of work
 

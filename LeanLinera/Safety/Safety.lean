@@ -28,12 +28,6 @@ section Inv
 variable {cfg : Config Owner Block} {s : State V Owner Block} (hs : Inv cfg s)
 include hs
 
-/-- **Unique validation per round** (paper, Lemma unique-valcert). -/
-theorem Inv.valCert_unique {B₁ B₂ : Block} {r : Round} (h₁ : s.ValCert B₁ r)
-    (h₂ : s.ValCert B₂ r) : B₁ = B₂ := by
-  obtain ⟨v, hv, hs₁, hs₂⟩ := h₁.exists_honest_HSig_inter h₂
-  exact (hs v hv).val_unique B₁ B₂ r hs₁ hs₂
-
 /-- Two confirmation certificates in one round are for the same block. -/
 theorem Inv.confCert_unique_round {B₁ B₂ : Block} {r : Round} (h₁ : s.ConfCert B₁ r)
     (h₂ : s.ConfCert B₂ r) : B₁ = B₂ := by

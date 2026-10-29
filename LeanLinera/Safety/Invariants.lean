@@ -76,6 +76,11 @@ structure VInv (cfg : Config Owner Block) (s : State V Owner Block) (v : V) : Pr
     ∃ P, e.prop = some P ∧ P.block = B ∧ P.round = r ∧ cfg.FastEligible r P.owner
   /-- A finalized block has a confirmation certificate. -/
   finalized_cert : ∀ B, (s.locals v).finalized = some B → ∃ r, s.ConfCert B r
+  /-- Every entry of `knownValCert` is a validation certificate. -/
+  knownVal_cert : ∀ r B, (s.locals v).knownVal r = some B → s.ValCert B r
+  /-- A lock from a two-phase round is recorded in `knownValCert`. -/
+  lock_known : ∀ lk ∈ (s.locals v).lock, ¬ cfg.IsFast lk.2 →
+    (s.locals v).knownVal lk.2 = some lk.1
 
 /-- The invariant at every honest validator. -/
 def Inv (cfg : Config Owner Block) (s : State V Owner Block) : Prop :=
@@ -104,6 +109,8 @@ theorem VInv.init (cfg : Config Owner Block) (v : V) :
   val_ghost e he := by simp [State.init] at he
   fast_elig e he := by simp [State.init] at he
   finalized_cert B h := by simp [State.init, Local.init] at h
+  knownVal_cert r B h := by simp [State.init, Local.init] at h
+  lock_known lk h := by simp [State.init, Local.init] at h
 
 theorem Inv.init (cfg : Config Owner Block) : Inv cfg (State.init : State V Owner Block) :=
   fun v _ => VInv.init cfg v
@@ -198,6 +205,8 @@ theorem VInv.sign_of_ne {cfg : Config Owner Block} {s : State V Owner Block} {v 
     · exact hv.fast_elig e' he' hs B r hm hf
     · exact absurd hs h
   finalized_cert B hf := let ⟨r, hr⟩ := hv.finalized_cert B hf; ⟨r, hr.sign e⟩
+  knownVal_cert r B h := (hv.knownVal_cert r B h).sign e
+  lock_known := hv.lock_known
 
 /-- The invariant at `v` persists under a local update of someone else. -/
 theorem VInv.set_of_ne {cfg : Config Owner Block} {s : State V Owner Block} {v w : V}
@@ -216,5 +225,7 @@ theorem VInv.set_of_ne {cfg : Config Owner Block} {s : State V Owner Block} {v w
   val_ghost e he hs B r hm := (hv.val_ghost e he hs B r hm).set w l
   fast_elig := hv.fast_elig
   finalized_cert B hf := by rw [locals_set_of_ne _ _ h] at hf; exact hv.finalized_cert B hf
+  knownVal_cert r B hk := by rw [locals_set_of_ne _ _ h] at hk; exact hv.knownVal_cert r B hk
+  lock_known lk hlk := by rw [locals_set_of_ne _ _ h] at hlk ⊢; exact hv.lock_known lk hlk
 
 end LeanLinera
