@@ -1,4 +1,4 @@
-import LeanLinera.Protocol
+import Linera.Protocol
 
 /-!
 # A four-validator model
@@ -7,9 +7,9 @@ Four validators of equal power, `f = 1`, validator `3` Byzantine; two
 owners; three blocks. The quorum size is `3`. Used by every witness.
 -/
 
-namespace LeanLineraTest
+namespace LineraTest
 
-open LeanLinera
+open Linera
 
 /-- The validators. -/
 abbrev V := Fin 4
@@ -49,4 +49,4 @@ def check (cfg : Config Owner Block) (inputs : List (V × Input Owner Block))
   | some s => decide (p s)
   | none => false
 
-end LeanLineraTest
+end LineraTest

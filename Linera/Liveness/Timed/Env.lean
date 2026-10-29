@@ -1,5 +1,5 @@
-import LeanLinera.Liveness.Timed.Exec
-import LeanLinera.Schedule
+import Linera.Liveness.Timed.Exec
+import Linera.Schedule
 
 /-!
 # The environment: partial synchrony and the honest owner
@@ -35,7 +35,7 @@ Each obligation allows the escape "a block has been confirmed", since a
 finalized validator takes no further step.
 -/
 
-namespace LeanLinera
+namespace Linera
 
 variable {V Owner Block : Type*} [Fintype V] [DecidableEq V] [Q : QuorumSystem V]
   [DecidableEq Owner] [DecidableEq Block]
@@ -171,7 +171,7 @@ theorem log_entry_act (t : ℕ) : ∀ e ∈ (ex.st t).log, ∀ P, e.prop = some 
       · -- the new entry: only a proposal step creates an entry with a proposal
         cases i with
         | proposal P' =>
-          rw [LeanLinera.step] at hst
+          rw [Linera.step] at hst
           split_ifs at hst <;> simp only [Option.some.injEq] at hst <;> subst hst
           · simp only [log_sign, log_set, List.append_cancel_left_eq, List.cons.injEq,
               and_true] at hl
@@ -183,23 +183,23 @@ theorem log_entry_act (t : ℕ) : ∀ e ∈ (ex.st t).log, ∀ P, e.prop = some 
             exact ⟨t, Nat.lt_succ_self t, hact⟩
           · simp at hl
         | valCert B r =>
-          rw [LeanLinera.step] at hst
+          rw [Linera.step] at hst
           split_ifs at hst <;> simp only [Option.some.injEq] at hst <;> subst hst
           · simp only [log_sign, log_set, List.append_cancel_left_eq, List.cons.injEq,
               and_true] at hl
             subst hl; simp at hP
           · simp at hl
         | confCert B r =>
-          rw [LeanLinera.step] at hst
+          rw [Linera.step] at hst
           split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst; simp at hl
         | timeout r =>
-          rw [LeanLinera.step] at hst
+          rw [Linera.step] at hst
           split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst
           simp only [log_sign, log_set, List.append_cancel_left_eq, List.cons.injEq,
             and_true] at hl
           subst hl; simp at hP
         | timeoutCert r =>
-          rw [LeanLinera.step] at hst
+          rw [Linera.step] at hst
           split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst; simp at hl
 
 /-- Every timeout vote was created by a timeout step at the signer's current round. -/
@@ -219,14 +219,14 @@ theorem log_time_act (t : ℕ) : ∀ v ρ, (ex.st t).HSig v (.time ρ) →
     simp only [Option.getD_some] at h
     cases i with
     | timeout ρ' =>
-      rw [LeanLinera.step] at hst
+      rw [Linera.step] at hst
       split_ifs at hst with hok; simp only [Option.some.injEq] at hst; subst hst
       rcases (HSig_sign _ _ _ _).1 h with h | ⟨rfl, hm⟩
       · obtain ⟨t', ht', h⟩ := ih v ρ h; exact ⟨t', ht'.trans (Nat.lt_succ_self t), h⟩
       · simp only [Msg.time.injEq] at hm; subst hm
         exact ⟨t, Nat.lt_succ_self t, hact, hok.2.1.symm⟩
     | proposal P =>
-      rw [LeanLinera.step] at hst
+      rw [Linera.step] at hst
       split_ifs at hst <;> simp only [Option.some.injEq] at hst <;> subst hst
       · rcases (HSig_sign _ _ _ _).1 h with h | ⟨_, hm⟩
         · obtain ⟨t', ht', h⟩ := ih v ρ h; exact ⟨t', ht'.trans (Nat.lt_succ_self t), h⟩
@@ -236,18 +236,18 @@ theorem log_time_act (t : ℕ) : ∀ v ρ, (ex.st t).HSig v (.time ρ) →
         · cases hm
       · obtain ⟨t', ht', h⟩ := ih v ρ h; exact ⟨t', ht'.trans (Nat.lt_succ_self t), h⟩
     | valCert B r =>
-      rw [LeanLinera.step] at hst
+      rw [Linera.step] at hst
       split_ifs at hst <;> simp only [Option.some.injEq] at hst <;> subst hst
       · rcases (HSig_sign _ _ _ _).1 h with h | ⟨_, hm⟩
         · obtain ⟨t', ht', h⟩ := ih v ρ h; exact ⟨t', ht'.trans (Nat.lt_succ_self t), h⟩
         · cases hm
       · obtain ⟨t', ht', h⟩ := ih v ρ h; exact ⟨t', ht'.trans (Nat.lt_succ_self t), h⟩
     | confCert B r =>
-      rw [LeanLinera.step] at hst
+      rw [Linera.step] at hst
       split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst
       obtain ⟨t', ht', h⟩ := ih v ρ h; exact ⟨t', ht'.trans (Nat.lt_succ_self t), h⟩
     | timeoutCert r =>
-      rw [LeanLinera.step] at hst
+      rw [Linera.step] at hst
       split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst
       obtain ⟨t', ht', h⟩ := ih v ρ h; exact ⟨t', ht'.trans (Nat.lt_succ_self t), h⟩
 
@@ -289,7 +289,7 @@ theorem lb_fast_block' {fb : Option Block}
     subst hwv
     cases i with
     | proposal P =>
-      rw [LeanLinera.step] at hst
+      rw [Linera.step] at hst
       split_ifs at hst with hf hok hpre hacc <;> simp only [Option.some.injEq] at hst <;> subst hst
       · simp only [locals_sign, locals_set_self, Local.afterFast, Option.some.injEq,
           Locking.fast.injEq] at h
@@ -302,7 +302,7 @@ theorem lb_fast_block' {fb : Option Block}
           unfold Local.JustOk at hjo; rw [hj] at hjo; exact hjo.1
       · simp only [locals_set_self, Local.afterBump] at h; exact ih v B' h
     | valCert B r =>
-      rw [LeanLinera.step] at hst
+      rw [Linera.step] at hst
       split_ifs at hst with hok hcv <;> simp only [Option.some.injEq] at hst <;> subst hst
       · have : (((ex.st t).locals v).afterValCert B r).lb = some (.cert B r) := by
           simp [Local.afterValCert, hcv]
@@ -311,15 +311,15 @@ theorem lb_fast_block' {fb : Option Block}
           simp [Local.afterValCert, hcv]
         simp only [locals_set_self] at h; rw [this] at h; cases h
     | confCert B r =>
-      rw [LeanLinera.step] at hst
+      rw [Linera.step] at hst
       split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst
       simp only [locals_set_self, Local.afterConfCert] at h; exact ih v B' h
     | timeout r =>
-      rw [LeanLinera.step] at hst
+      rw [Linera.step] at hst
       split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst
       simp only [locals_sign, locals_set_self, Local.afterTimeout] at h; exact ih v B' h
     | timeoutCert r =>
-      rw [LeanLinera.step] at hst
+      rw [Linera.step] at hst
       split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst
       simp only [locals_set_self, Local.afterTimeoutCert] at h; exact ih v B' h
 
@@ -348,7 +348,7 @@ theorem tc_field_cert (t : ℕ) : ∀ v τ, ((ex.st t).locals v).tc = some τ �
     subst hwv
     cases i with
     | proposal P =>
-      rw [LeanLinera.step] at hst
+      rw [Linera.step] at hst
       split_ifs at hst <;> simp only [Option.some.injEq] at hst <;> subst hst <;>
         simp only [locals_sign, locals_set_self, Local.afterFast, Local.afterVal,
           Local.afterBump] at h
@@ -356,7 +356,7 @@ theorem tc_field_cert (t : ℕ) : ∀ v τ, ((ex.st t).locals v).tc = some τ �
       · exact (ih v τ h).sign _
       · exact ih v τ h
     | valCert B r =>
-      rw [LeanLinera.step] at hst
+      rw [Linera.step] at hst
       have htc : (((ex.st t).locals v).afterValCert B r).tc = ((ex.st t).locals v).tc := by
         simp only [Local.afterValCert]; split_ifs <;> rfl
       split_ifs at hst <;> simp only [Option.some.injEq] at hst <;> subst hst <;>
@@ -364,15 +364,15 @@ theorem tc_field_cert (t : ℕ) : ∀ v τ, ((ex.st t).locals v).tc = some τ �
       · exact (ih v τ h).sign _
       · exact ih v τ h
     | confCert B r =>
-      rw [LeanLinera.step] at hst
+      rw [Linera.step] at hst
       split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst
       simp only [locals_set_self, Local.afterConfCert] at h; exact ih v τ h
     | timeout r =>
-      rw [LeanLinera.step] at hst
+      rw [Linera.step] at hst
       split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst
       simp only [locals_sign, locals_set_self, Local.afterTimeout] at h; exact (ih v τ h).sign _
     | timeoutCert r =>
-      rw [LeanLinera.step] at hst
+      rw [Linera.step] at hst
       split_ifs at hst with hok; simp only [Option.some.injEq] at hst; subst hst
       simp only [locals_set_self, Local.afterTimeoutCert, Option.some.injEq] at h
       subst h; exact hok.1
@@ -386,4 +386,4 @@ theorem exists_honest_list : ∃ L : List V, L.Nodup ∧ (∀ v ∈ Q.honest, v 
 
 end TExec
 
-end LeanLinera
+end Linera

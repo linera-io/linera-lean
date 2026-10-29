@@ -1,4 +1,4 @@
-import LeanLineraTest.Model
+import LineraTest.Model
 
 /-!
 # Witness executions
@@ -15,9 +15,9 @@ Concrete runs on the four-validator model, checked by `decide`:
 * a timed-out round advanced by a timeout certificate.
 -/
 
-namespace LeanLineraTest
+namespace LineraTest
 
-open LeanLinera
+open Linera
 
 set_option maxRecDepth 4096
 
@@ -129,4 +129,4 @@ theorem single_leader_not_skipped :
     run slowCfg [((0 : V), .timeout 1)] (State.init : State V Owner Block) = none := by
   decide
 
-end LeanLineraTest
+end LineraTest

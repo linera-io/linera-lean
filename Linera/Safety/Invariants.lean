@@ -1,4 +1,4 @@
-import LeanLinera.Protocol
+import Linera.Protocol
 
 /-!
 # The inductive invariant
@@ -20,7 +20,7 @@ across steps of *other* validators. `Preservation.lean` proves it across
 the acting validator's own handlers.
 -/
 
-namespace LeanLinera
+namespace Linera
 
 variable {V Owner Block : Type*} [Fintype V] [DecidableEq V] [Q : QuorumSystem V]
   [DecidableEq Block]
@@ -254,4 +254,4 @@ theorem VInv.set_of_ne {cfg : Config Owner Block} {s : State V Owner Block} {v w
   fast_elig := hv.fast_elig
   finalized_cert B hf := by rw [locals_set_of_ne _ _ h] at hf; exact hv.finalized_cert B hf
 
-end LeanLinera
+end Linera

@@ -1,6 +1,6 @@
-import LeanLinera.Safety.Safety
-import LeanLinera.Safety.Monotone
-import LeanLinera.Liveness.Core
+import Linera.Safety.Safety
+import Linera.Safety.Monotone
+import Linera.Liveness.Core
 
 /-!
 # Timed executions
@@ -20,7 +20,7 @@ validator past a single-leader round `r` got there through a timeout
 certificate for `r` that existed strictly earlier.
 -/
 
-namespace LeanLinera
+namespace Linera
 
 variable {V Owner Block : Type*} [Fintype V] [DecidableEq V] [Q : QuorumSystem V]
   [DecidableEq Owner] [DecidableEq Block]
@@ -238,7 +238,7 @@ theorem le_round_or_tc (hr : cfg.IsSingle r) (t : ℕ) :
       have hinv := ex.inv t
       cases i with
       | proposal P =>
-        rw [LeanLinera.step] at hst
+        rw [Linera.step] at hst
         split_ifs at hst with hf hok hpre hacc <;> simp only [Option.some.injEq] at hst <;>
           subst hst
         · -- fast: the round is unchanged
@@ -260,7 +260,7 @@ theorem le_round_or_tc (hr : cfg.IsSingle r) (t : ℕ) :
           · exact hle.trans hr
           · exact hro ▸ ih w hw
       | valCert B ρ =>
-        rw [LeanLinera.step] at hst
+        rw [Linera.step] at hst
         have hcur : (((ex.st t).locals w).afterValCert B ρ).cur =
             max ((ex.st t).locals w).cur ρ := by
           simp only [Local.afterValCert]; split_ifs <;> rfl
@@ -272,17 +272,17 @@ theorem le_round_or_tc (hr : cfg.IsSingle r) (t : ℕ) :
         · simp only [locals_set_self, hcur]
           exact max_le (ih w hw) (hρ.trans (ih u hu))
       | confCert B ρ =>
-        rw [LeanLinera.step] at hst
+        rw [Linera.step] at hst
         split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst
         simp only [locals_set_self, Local.afterConfCert]
         exact ih w hw
       | timeout ρ =>
-        rw [LeanLinera.step] at hst
+        rw [Linera.step] at hst
         split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst
         simp only [locals_sign, locals_set_self, Local.afterTimeout]
         exact ih w hw
       | timeoutCert ρ =>
-        rw [LeanLinera.step] at hst
+        rw [Linera.step] at hst
         split_ifs at hst with hok; simp only [Option.some.injEq] at hst; subst hst
         simp only [locals_set_self, Local.afterTimeoutCert]
         refine max_le (ih w hw) ?_
@@ -304,27 +304,27 @@ theorem step_tc_le {s s' : State V Owner Block} {v : V} {i : Input Owner Block}
   subst hwv
   cases i with
   | proposal P =>
-    rw [LeanLinera.step] at h
+    rw [Linera.step] at h
     split_ifs at h <;> simp only [Option.some.injEq] at h <;> subst h <;>
       simp only [locals_sign, locals_set_self, Local.afterFast, Local.afterVal,
         Local.afterBump] <;>
       exact fun τ hτ => ⟨τ, hτ, le_rfl⟩
   | valCert B r =>
-    rw [LeanLinera.step] at h
+    rw [Linera.step] at h
     have htc : (((s.locals w).afterValCert B r)).tc = (s.locals w).tc := by
       simp only [Local.afterValCert]; split_ifs <;> rfl
     split_ifs at h <;> simp only [Option.some.injEq] at h <;> subst h <;>
       simp only [locals_sign, locals_set_self, htc] <;> exact fun τ hτ => ⟨τ, hτ, le_rfl⟩
   | confCert B r =>
-    rw [LeanLinera.step] at h
+    rw [Linera.step] at h
     split_ifs at h; simp only [Option.some.injEq] at h; subst h
     simp only [locals_set_self, Local.afterConfCert]; exact fun τ hτ => ⟨τ, hτ, le_rfl⟩
   | timeout r =>
-    rw [LeanLinera.step] at h
+    rw [Linera.step] at h
     split_ifs at h; simp only [Option.some.injEq] at h; subst h
     simp only [locals_sign, locals_set_self, Local.afterTimeout]; exact fun τ hτ => ⟨τ, hτ, le_rfl⟩
   | timeoutCert r =>
-    rw [LeanLinera.step] at h
+    rw [Linera.step] at h
     split_ifs at h with hok; simp only [Option.some.injEq] at h; subst h
     simp only [locals_set_self, Local.afterTimeoutCert]
     intro τ hτ
@@ -375,7 +375,7 @@ theorem le_round_or_tc_field (hr : cfg.IsSingle r) (t : ℕ) :
       have hinv := ex.inv t
       cases i with
       | proposal P =>
-        rw [LeanLinera.step] at hst
+        rw [Linera.step] at hst
         split_ifs at hst with hf hok hpre hacc <;> simp only [Option.some.injEq] at hst <;>
           subst hst
         · simp only [locals_sign, locals_set_self, Local.afterFast]
@@ -396,7 +396,7 @@ theorem le_round_or_tc_field (hr : cfg.IsSingle r) (t : ℕ) :
           · exact hle.trans hr
           · exact hro ▸ ih w hw
       | valCert B ρ =>
-        rw [LeanLinera.step] at hst
+        rw [Linera.step] at hst
         have hcur : (((ex.st t).locals w).afterValCert B ρ).cur =
             max ((ex.st t).locals w).cur ρ := by
           simp only [Local.afterValCert]; split_ifs <;> rfl
@@ -408,17 +408,17 @@ theorem le_round_or_tc_field (hr : cfg.IsSingle r) (t : ℕ) :
         · simp only [locals_set_self, hcur]
           exact max_le (ih w hw) (hρ.trans (ih u hu))
       | confCert B ρ =>
-        rw [LeanLinera.step] at hst
+        rw [Linera.step] at hst
         split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst
         simp only [locals_set_self, Local.afterConfCert]
         exact ih w hw
       | timeout ρ =>
-        rw [LeanLinera.step] at hst
+        rw [Linera.step] at hst
         split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst
         simp only [locals_sign, locals_set_self, Local.afterTimeout]
         exact ih w hw
       | timeoutCert ρ =>
-        rw [LeanLinera.step] at hst
+        rw [Linera.step] at hst
         split_ifs at hst with hok; simp only [Option.some.injEq] at hst; subst hst
         simp only [locals_set_self, Local.afterTimeoutCert]
         refine max_le (ih w hw) ?_
@@ -431,7 +431,7 @@ theorem le_round_or_tc_field (hr : cfg.IsSingle r) (t : ℕ) :
           have hmem : ρ ∈ ((ex.st (t + 1)).locals w).tc := by
             rw [ex.succ, hact]
             simp only [stepOpt]
-            rw [LeanLinera.step, ite_eq_left hok]
+            rw [Linera.step, ite_eq_left hok]
             simp [Local.afterTimeoutCert]
           exact lt_irrefl _ (hpast w hw ρ hmem)
 
@@ -445,4 +445,4 @@ theorem exists_tc_of_gt (hr : cfg.IsSingle r) {w : V} (hw : w ∈ Q.honest) {t :
 
 end TExec
 
-end LeanLinera
+end Linera

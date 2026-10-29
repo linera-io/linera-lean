@@ -1,4 +1,4 @@
-import LeanLinera.Messages
+import Linera.Messages
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -13,7 +13,7 @@ stake-weighted pseudo-random schedule is a parameter `leader` here; the
 property it must satisfy is the conclusion of `roundRobin_exists_ge`.
 -/
 
-namespace LeanLinera
+namespace Linera
 
 variable {Owner Block : Type*}
 
@@ -64,4 +64,4 @@ theorem Config.exists_sole_eligible (cfg : Config (Fin m) Block) [NeZero m]
   rw [cfg.eligible_iff_single hs, hl, hro, hnf]
   simp
 
-end LeanLinera
+end Linera

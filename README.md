@@ -1,4 +1,4 @@
-# lean-linera
+# linera-lean
 
 A Lean 4 + Mathlib formalization of the per-height consensus protocol of the
 Linera paper, as implemented in `linera-protocol`: the validator handlers
@@ -15,7 +15,7 @@ checks that every theorem uses only `propext`, `Classical.choice` and
 
 ## Layout
 
-- `LeanLinera/Committee.lean` — abstract quorum system; the stake-weighted
+- `Linera/Committee.lean` — abstract quorum system; the stake-weighted
   committee as an instance, with quorum intersection.
 - `Messages.lean`, `Validator.lean`, `Protocol.lean` — messages, the
   per-chain configuration, the validator handlers, and the transition system.
@@ -28,6 +28,6 @@ checks that every theorem uses only `propext`, `Classical.choice` and
 - `Liveness/Timed/` — timed executions with deadlines, the environment
   (partial synchrony after `GST`, the honest owner's obligations), round
   growth and the liveness theorem (`TExec.Env.liveness`).
-- `LeanLineraTest/` — concrete executions on a four-validator model, checked
+- `LineraTest/` — concrete executions on a four-validator model, checked
   by `decide`.
 - `docs/design.md` — plan, design, mapping to the paper, findings.

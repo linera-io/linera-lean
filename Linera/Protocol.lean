@@ -1,4 +1,4 @@
-import LeanLinera.Validator
+import Linera.Validator
 import Mathlib.Logic.Relation
 
 /-!
@@ -22,7 +22,7 @@ untimed model lets a timeout be signed at any moment, so it includes every
 behaviour of the timed protocol and the safety theorems carry over.
 -/
 
-namespace LeanLinera
+namespace Linera
 
 variable {V Owner Block : Type*}
 
@@ -268,4 +268,4 @@ theorem Reachable.of_run (cfg : Config Owner Block) {s s' : State V Owner Block}
     have hstep : Step cfg s s₁ := ⟨v, hv (v, i) (by simp), i, h₁⟩
     exact ih (Relation.ReflTransGen.tail hs hstep) (fun p hp => hv p (by simp [hp])) h₂
 
-end LeanLinera
+end Linera

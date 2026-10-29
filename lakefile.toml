@@ -1,9 +1,9 @@
-name = "leanlinera"
+name = "linera"
 version = "0.1.0"
 keywords = ["math"]
 # Plain (non-`module`) files importing Mathlib, as in lean-dag.
 allowNonModules = true
-defaultTargets = ["LeanLinera", "LeanLineraTest"]
+defaultTargets = ["Linera", "LineraTest"]
 
 [leanOptions]
 pp.unicode.fun = true
@@ -19,10 +19,10 @@ scope = "leanprover-community"
 rev = "v4.35.0"
 
 [[lean_lib]]
-name = "LeanLinera"
+name = "Linera"
 
 # Concrete models and executions, checked by `decide`, so that a definition
 # change which empties the structures fails the build instead of silently
 # trivialising every theorem above it.
 [[lean_lib]]
-name = "LeanLineraTest"
+name = "LineraTest"

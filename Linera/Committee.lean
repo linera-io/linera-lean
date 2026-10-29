@@ -14,7 +14,7 @@ power at most `f`, `3f < n`, quorum any power `≥ n − f`) is an instance,
 `Weighted.toQuorumSystem`, and counting is the special case `weight = 1`.
 -/
 
-namespace LeanLinera
+namespace Linera
 
 /-- An abstract quorum system over the validators `V`. -/
 class QuorumSystem (V : Type*) [Fintype V] [DecidableEq V] where
@@ -169,4 +169,4 @@ theorem not_quorum_of_subset_byz {A : Finset V} (h : ∀ v ∈ A, v ∉ Q.honest
 
 end QuorumSystem
 
-end LeanLinera
+end Linera

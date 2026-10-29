@@ -1,4 +1,4 @@
-import LeanLinera.Liveness.Timed.Liveness
+import Linera.Liveness.Timed.Liveness
 import Mathlib.Data.Finset.Max
 
 /-!
@@ -32,7 +32,7 @@ proposals are the only proposals signed by it (`honest_sends`).
 and `OwnerEnv.liveness` follows.
 -/
 
-namespace LeanLinera
+namespace Linera
 
 variable {V Owner Block : Type*} [Fintype V] [DecidableEq V] [Q : QuorumSystem V]
   [DecidableEq Owner] [DecidableEq Block]
@@ -291,7 +291,7 @@ noncomputable def OwnerEnv.toEnv (oe : OwnerEnv ex) : ex.Env where
         ⟨Option.eq_none_iff_forall_ne_some.2 hfin, hcur.symm, htv⟩
       refine ⟨t' + 1, by omega, by omega, Or.inl ?_⟩
       rw [ex.succ, hact]
-      simp only [stepOpt, LeanLinera.step, ite_eq_left hok, Option.getD_some]
+      simp only [stepOpt, Linera.step, ite_eq_left hok, Option.getD_some]
       rw [HSig_sign]; exact Or.inr ⟨rfl, rfl⟩
     · exact absurd hcur hst
   tc_known := by
@@ -318,7 +318,7 @@ noncomputable def OwnerEnv.toEnv (oe : OwnerEnv ex) : ex.Env where
     refine ⟨t' + 1, by omega, by omega, Or.inl ?_⟩
     change τ < ((ex.st (t' + 1)).locals w).cur
     rw [ex.succ, hact]
-    simp only [stepOpt, LeanLinera.step, ite_eq_left hc, Option.getD_some,
+    simp only [stepOpt, Linera.step, ite_eq_left hc, Option.getD_some,
       locals_set_self, Local.afterTimeoutCert]
     omega
   tc_honest := by
@@ -345,7 +345,7 @@ noncomputable def OwnerEnv.toEnv (oe : OwnerEnv ex) : ex.Env where
     refine ⟨t' + 1, by omega, by omega, Or.inl ?_⟩
     change τ < ((ex.st (t' + 1)).locals w).cur
     rw [ex.succ, hact]
-    simp only [stepOpt, LeanLinera.step, ite_eq_left hc, Option.getD_some,
+    simp only [stepOpt, Linera.step, ite_eq_left hc, Option.getD_some,
       locals_set_self, Local.afterTimeoutCert]
     omega
   propose := by
@@ -401,4 +401,4 @@ theorem OwnerEnv.liveness (oe : OwnerEnv ex) : ∃ t, ex.Done t := oe.toEnv.live
 
 end TExec
 
-end LeanLinera
+end Linera

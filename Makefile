@@ -1,4 +1,4 @@
-# Development loop for lean-linera.
+# Development loop for linera-lean.
 #
 #   make fast     library only                     (skips the witnesses)
 #   make check    both libraries                   (run before committing)
@@ -9,7 +9,7 @@
 
 ## fast: library only
 fast:
-	lake build LeanLinera
+	lake build Linera
 
 ## check: both libraries
 check:

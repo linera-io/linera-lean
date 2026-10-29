@@ -1,4 +1,4 @@
-import LeanLinera.Safety.Preservation
+import Linera.Safety.Preservation
 
 /-!
 # Safety
@@ -10,7 +10,7 @@ reachable states. Every statement is over the untimed model, hence with
 no timing assumption, and holds with the fast round enabled or not.
 -/
 
-namespace LeanLinera
+namespace Linera
 
 variable {V Owner Block : Type*} [Fintype V] [DecidableEq V] [Q : QuorumSystem V]
   [DecidableEq Block]
@@ -146,4 +146,4 @@ theorem lock_validate {e : Sig V Owner Block} (he : e ∈ s.log) (hv : e.signer 
 
 end Reachable
 
-end LeanLinera
+end Linera

@@ -7,7 +7,7 @@
 > and whether this report is faithful to what is proved, has only
 > human-plus-LLM review behind it. Read critically.
 
-This report states what `lean-linera` proves about the per-height
+This report states what `linera-lean` proves about the per-height
 consensus protocol of the Linera paper (section Consensus and Appendix
 A), as amended on 2026-10-29 to follow the reference implementation
 (`linera-protocol`, crates `linera-chain` and `linera-core`). Every
@@ -100,7 +100,7 @@ theorem step_erase (cfg : Config Owner Block) {s s' : State V Owner Block} (h : 
 
 Every definition is exercised on a four-validator model (equal power,
 `f = 1`, one Byzantine validator) by `decide` before anything is proved
-from it (`LeanLineraTest/`): a two-phase round that finalizes; a fast
+from it (`LineraTest/`): a two-phase round that finalizes; a fast
 round that finalizes with confirmation votes only; a clashed multi-leader
 round skipped by a proposal for the next round with no timeout; a lock
 refusing a conflicting proposal while still advancing the round, and the

@@ -1,5 +1,5 @@
-import LeanLinera.Safety.Preservation
-import LeanLinera.Liveness.Runs
+import Linera.Safety.Preservation
+import Linera.Liveness.Runs
 
 /-!
 # The protocol core of liveness: a good round finalizes
@@ -20,7 +20,7 @@ block if there is none — yields a proposal that passes every honest lock
 `acceptable_of_no_lock`).
 -/
 
-namespace LeanLinera
+namespace Linera
 
 variable {V Owner Block : Type*} [Fintype V] [DecidableEq V] [Q : QuorumSystem V]
   [DecidableEq Owner] [DecidableEq Block]
@@ -35,14 +35,14 @@ theorem step_val {cfg : Config Owner Block} {s : State V Owner Block} {v : V}
     (hjc : s.JustCert P.just) (hlock : (s.locals v).lockOk cfg P) (hvalid : cfg.Valid P.block) :
     step cfg s v (.proposal P) = some ((s.set v ((s.locals v).afterVal P)).sign
       ⟨v, .val P.block P.round, (s.locals v).lock, some P⟩) := by
-  rw [LeanLinera.step, ite_eq_right hnf, ite_eq_left ⟨hpre, hjc⟩, ite_eq_left ⟨hlock, hvalid⟩]
+  rw [Linera.step, ite_eq_right hnf, ite_eq_left ⟨hpre, hjc⟩, ite_eq_left ⟨hlock, hvalid⟩]
 
 /-- Any accepted two-phase proposal updates the validator by `afterVal` or `afterBump`. -/
 theorem step_proposal_locals_self {cfg : Config Owner Block} {s s' : State V Owner Block} {v : V}
     {P : Proposal Owner Block} (hnf : ¬ cfg.IsFast P.round)
     (h : step cfg s v (.proposal P) = some s') :
     s'.locals v = (s.locals v).afterVal P ∨ s'.locals v = (s.locals v).afterBump P := by
-  rw [LeanLinera.step, ite_eq_right hnf] at h
+  rw [Linera.step, ite_eq_right hnf] at h
   split_ifs at h <;> simp only [Option.some.injEq] at h <;> subst h <;> simp
 
 /-- Certificates in a justification persist across a step. -/
@@ -83,7 +83,7 @@ theorem step_conf {cfg : Config Owner Block} {s : State V Owner Block} {v : V} {
     (hcv : (s.locals v).confVotes r) :
     step cfg s v (.valCert B r) = some ((s.set v ((s.locals v).afterValCert B r)).sign
       ⟨v, .conf B r, (s.locals v).lock, none⟩) := by
-  rw [LeanLinera.step, ite_eq_left ⟨hcert, hok⟩]
+  rw [Linera.step, ite_eq_left ⟨hcert, hok⟩]
   simp only [ite_eq_left hcv]
 
 /-- Readiness to confirm `B` in `r`: honest, the certificate exists, it is
@@ -334,4 +334,4 @@ theorem wellFormed_of_highest_lb {cfg : Config Owner Block} {s : State V Owner B
   just := ⟨rfl, valCert_lt_of_fresh hs hfresh ((hs w hw).lb_cert B ρ hlbw)⟩
   cert := (hs w hw).lb_cert B ρ hlbw
 
-end LeanLinera
+end Linera

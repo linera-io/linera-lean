@@ -1,4 +1,4 @@
-import LeanLinera.Liveness.Timed.Env
+import Linera.Liveness.Timed.Env
 
 /-!
 # Liveness under partial synchrony
@@ -25,7 +25,7 @@ The paper's Theorem liveness for the timed model: under the environment
   is delivered, and every honest validator confirms.
 -/
 
-namespace LeanLinera
+namespace Linera
 
 variable {V Owner Block : Type*} [Fintype V] [DecidableEq V] [Q : QuorumSystem V]
   [DecidableEq Owner] [DecidableEq Block]
@@ -209,7 +209,7 @@ theorem winAt_step {s₀ s s' : State V Owner Block} {P : Proposal Owner Block} 
   subst hwv
   cases i with
   | proposal P' =>
-    rw [LeanLinera.step] at hst
+    rw [Linera.step] at hst
     split_ifs at hst with hf hok hpre hacc <;> simp only [Option.some.injEq] at hst <;> subst hst
     · exact absurd hf (hq P' rfl)
     · -- validated: the proposal is for `r` and for `P.block`
@@ -239,7 +239,7 @@ theorem winAt_step {s₀ s s' : State V Owner Block} {P : Proposal Owner Block} 
       simp only [locals_set_self, Local.afterBump]
       exact hwin
   | valCert B' ρ =>
-    rw [LeanLinera.step] at hst
+    rw [Linera.step] at hst
     split_ifs at hst with hok hcv <;> simp only [Option.some.injEq] at hst <;> subst hst
     · -- a confirmation in `r` for `P.block`
       have hρ : ρ = r := by
@@ -273,13 +273,13 @@ theorem winAt_step {s₀ s s' : State V Owner Block} {P : Proposal Owner Block} 
         subst hlb; exact hρ
       · exact Or.inr (Or.inr h)
   | confCert B' ρ =>
-    rw [LeanLinera.step] at hst
+    rw [Linera.step] at hst
     split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst
     unfold WinAt at hwin ⊢
     simp only [locals_set_self, Local.afterConfCert]
     exact hwin
   | timeout ρ =>
-    rw [LeanLinera.step] at hst
+    rw [Linera.step] at hst
     split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst
     unfold WinAt at hwin ⊢
     simp only [locals_sign, locals_set_self, Local.afterTimeout]
@@ -288,7 +288,7 @@ theorem winAt_step {s₀ s s' : State V Owner Block} {P : Proposal Owner Block} 
     · exact Or.inr (Or.inl ⟨h₁.sign _, h₂, h₃⟩)
     · exact Or.inr (Or.inr (h.sign _))
   | timeoutCert ρ =>
-    rw [LeanLinera.step] at hst
+    rw [Linera.step] at hst
     split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst
     unfold WinAt at hwin ⊢
     simp only [locals_set_self, Local.afterTimeoutCert]
@@ -599,4 +599,4 @@ theorem Env.liveness : ∃ t, ex.Done t := by
 
 end TExec
 
-end LeanLinera
+end Linera

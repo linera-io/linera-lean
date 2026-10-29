@@ -1,4 +1,4 @@
-# lean-linera — plan and design
+# linera-lean — plan and design
 
 A Lean 4 + Mathlib formalization of the per-height consensus protocol of the
 Linera paper (`linera-paper`, §Consensus and Appendix A), in the conventions
@@ -68,7 +68,7 @@ parameter), and certificate upload and repair (App. B.1).
    lemma (untimed: in a good round the honest proposal goes through) plus
    the view changes, which need partial synchrony: an unknown `Δ` after an
    unknown GST, and round timeouts that grow.
-4. **Sibling repository `~/git/lean-linera`** (local commits; remote to be
+4. **Sibling repository `~/git/linera-lean`** (local commits; remote to be
    set up by the user), mirroring `lean-dag`
    (`lakefile.toml`, Mathlib pinned to a release tag, test library of
    concrete witnesses built by default, Makefile, CI). The LaTeX repository
@@ -80,7 +80,7 @@ parameter), and certificate upload and repair (App. B.1).
 
 ## 3. The model
 
-### 3.1 Committee (`LeanLinera/Committee.lean`)
+### 3.1 Committee (`Linera/Committee.lean`)
 
 ```lean
 class Committee (V : Type*) [Fintype V] [DecidableEq V] where
@@ -306,15 +306,15 @@ most of the effort.
 ## 6. Repository layout
 
 ```
-lean-linera/
+linera-lean/
   lakefile.toml  lean-toolchain  lake-manifest.json  Makefile  README.md
-  LeanLinera.lean
-  LeanLinera/
+  Linera.lean
+  Linera/
     Committee.lean      Messages.lean      Validator.lean     Protocol.lean
     Safety/   Invariants.lean  UniqueValCert.lean  Safety.lean
     Schedule.lean
     Liveness/ Core.lean  Timed.lean  Progress.lean  Liveness.lean
-  LeanLineraTest/       concrete models and executions, checked by decide
+  LineraTest/       concrete models and executions, checked by decide
   docs/   design.md (this)  spec.md  target-properties.md  report.md  style.md
   scripts/  axioms.lean (print axioms of every theorem)  extract-decls.py
   .github/workflows/ci.yml
@@ -587,7 +587,7 @@ Phase 4 is the open-ended part and is where F2 and F3 are settled.
 ## 9. Decisions taken
 
 All four open points of the first draft were confirmed on 2026-10-29:
-repository `~/git/lean-linera` with local commits; abstract weighted quorum
+repository `~/git/linera-lean` with local commits; abstract weighted quorum
 system; safety untimed, fast-round liveness under an honest leader only,
 slow-round view changes under partial synchrony; fast and slow rounds both
 in the model.

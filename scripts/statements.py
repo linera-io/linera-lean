@@ -7,7 +7,7 @@
 
 A statement is the text from the declaration keyword (`theorem`, `def`,
 `structure`, ...) through the end of its signature: up to `:= by`, `:=`
-at the end of a line, or `where`. Only declarations under LeanLinera/ are
+at the end of a line, or `where`. Only declarations under Linera/ are
 indexed, by their final name component or any dotted suffix. The check
 accepts any ```lean block that is, after whitespace normalisation, a
 verbatim excerpt of some source file (a statement, or a structure with
@@ -21,7 +21,7 @@ DECL = re.compile(r"^(" + KEYWORDS + r")\s+([A-Za-z_][\w'.₀-₉]*)", re.M)
 
 def statements():
     index = {}
-    for path in sorted((ROOT / "LeanLinera").rglob("*.lean")):
+    for path in sorted((ROOT / "Linera").rglob("*.lean")):
         text = path.read_text()
         lines = text.split("\n")
         for i, line in enumerate(lines):
@@ -62,7 +62,7 @@ def main():
     if len(sys.argv) >= 2 and sys.argv[1] == "check":
         report = (ROOT / "docs" / "report.md").read_text()
         blocks = re.findall(r"```lean\n(.*?)```", report, re.S)
-        sources = [norm(p.read_text()) for p in (ROOT / "LeanLinera").rglob("*.lean")]
+        sources = [norm(p.read_text()) for p in (ROOT / "Linera").rglob("*.lean")]
         bad = 0
         for b in blocks:
             for piece in re.split(r"\n\s*\n", b.strip()):

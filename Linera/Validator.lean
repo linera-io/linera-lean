@@ -1,4 +1,4 @@
-import LeanLinera.Messages
+import Linera.Messages
 
 /-!
 # A validator's per-height state and handlers
@@ -14,7 +14,7 @@ time out its current round at any moment) and `OnCertificateTimeout`
 is checked by the step relation of `Protocol.lean`.
 -/
 
-namespace LeanLinera
+namespace Linera
 
 /-- The locking block `lb`: the highest validation certificate seen, or
 the fast-round proposal of a block. -/
@@ -198,4 +198,4 @@ def afterTimeoutCert (l : Local Block) (r : Round) : Local Block :=
 
 end Local
 
-end LeanLinera
+end Linera

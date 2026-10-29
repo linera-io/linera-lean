@@ -1,5 +1,5 @@
-import LeanLinera.Safety.Safety
-import LeanLinera.Liveness.Runs
+import Linera.Safety.Safety
+import Linera.Liveness.Runs
 
 /-!
 # Eventual consistency
@@ -14,7 +14,7 @@ that had already finalized did so on a block with its own confirmation
 certificate, which safety identifies with this one.
 -/
 
-namespace LeanLinera
+namespace Linera
 
 variable {V Owner Block : Type*} [Fintype V] [DecidableEq V] [Q : QuorumSystem V]
   [DecidableEq Owner] [DecidableEq Block]
@@ -25,7 +25,7 @@ open State
 theorem step_confCert {cfg : Config Owner Block} {s : State V Owner Block} {v : V} {B : Block}
     {r : Round} (hcert : s.ConfCert B r) (hfin : (s.locals v).finalized = none) :
     step cfg s v (.confCert B r) = some (s.set v ((s.locals v).afterConfCert B)) := by
-  rw [LeanLinera.step, ite_eq_left ⟨hcert, hfin⟩]
+  rw [Linera.step, ite_eq_left ⟨hcert, hfin⟩]
 
 /-- Readiness to finalize `B`: honest, the certificate exists, not finalized. -/
 def FinReady (B : Block) (r : Round) (s : State V Owner Block) (v : V) : Prop :=
@@ -86,4 +86,4 @@ theorem eventual_consistency {cfg : Config Owner Block} {s : State V Owner Block
   · obtain ⟨r', hc'⟩ := ((Inv.reachable hs) v hv).finalized_cert B' h
     rw [(Inv.reachable hs).confCert_unique hc' hcert]
 
-end LeanLinera
+end Linera

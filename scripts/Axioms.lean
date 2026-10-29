@@ -1,5 +1,5 @@
-import LeanLinera
-import LeanLineraTest
+import Linera
+import LineraTest
 
 /-!
 Print the axioms of every theorem in the project and fail if any theorem
@@ -14,7 +14,7 @@ elab "#audit_axioms" : command => do
   let mut bad : Array (Name × List Name) := #[]
   let mut count := 0
   for (n, ci) in env.constants.map₁.toList do
-    unless n.getRoot == `LeanLinera || n.getRoot == `LeanLineraTest do continue
+    unless n.getRoot == `Linera || n.getRoot == `LineraTest do continue
     unless ci matches .thmInfo _ do continue
     if n.isInternal then continue
     count := count + 1

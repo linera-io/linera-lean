@@ -1,4 +1,4 @@
-import LeanLinera.Protocol
+import Linera.Protocol
 
 /-!
 # Ghost fields are erasable
@@ -12,7 +12,7 @@ the erasure (`HasCert_of_erase`), and so does every step
 fields.
 -/
 
-namespace LeanLinera
+namespace Linera
 
 variable {V Owner Block : Type*} [Fintype V] [DecidableEq V] [Q : QuorumSystem V]
   [DecidableEq Owner] [DecidableEq Block]
@@ -93,4 +93,4 @@ theorem step_erase (cfg : Config Owner Block) {s s' : State V Owner Block} (h : 
     simp only [step, hloc, hcert]
     split_ifs <;> simp [State.set, State.erase, hloc, hlog]
 
-end LeanLinera
+end Linera

@@ -1,4 +1,4 @@
-import LeanLinera.Liveness.Runs
+import Linera.Liveness.Runs
 
 /-!
 # Liveness of a fast round
@@ -12,7 +12,7 @@ validator's current round, so timing out the fast round does not by
 itself prevent this.
 -/
 
-namespace LeanLinera
+namespace Linera
 
 variable {V Owner Block : Type*} [Fintype V] [DecidableEq V] [Q : QuorumSystem V]
   [DecidableEq Owner] [DecidableEq Block]
@@ -24,7 +24,7 @@ theorem step_fast {cfg : Config Owner Block} {s : State V Owner Block} {v : V}
     {P : Proposal Owner Block} (hf : cfg.IsFast P.round) (hok : (s.locals v).fastOk cfg P) :
     step cfg s v (.proposal P) = some ((s.set v ((s.locals v).afterFast P)).sign
       ⟨v, .conf P.block P.round, (s.locals v).lock, some P⟩) := by
-  rw [LeanLinera.step, ite_eq_left hf, ite_eq_left hok]
+  rw [Linera.step, ite_eq_left hf, ite_eq_left hok]
 
 omit [Fintype V] [DecidableEq V] Q [DecidableEq Owner] [DecidableEq Block] in
 /-- A validator that has cast no vote accepts a valid fresh proposal by
@@ -73,4 +73,4 @@ theorem fast_round_finalizes {cfg : Config Owner Block} {P : Proposal Owner Bloc
   obtain ⟨v, hv, rfl⟩ := hp
   exact hL v hv
 
-end LeanLinera
+end Linera

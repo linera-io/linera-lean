@@ -1,4 +1,4 @@
-import LeanLinera.Protocol
+import Linera.Protocol
 
 /-!
 # Runs of honest inputs
@@ -11,7 +11,7 @@ list succeeds, and every one of them signs, as soon as each is ready for it
 and readiness is kept by the others' steps.
 -/
 
-namespace LeanLinera
+namespace Linera
 
 variable {V Owner Block : Type*} [Fintype V] [DecidableEq V] [Q : QuorumSystem V]
   [DecidableEq Owner] [DecidableEq Block]
@@ -35,23 +35,23 @@ theorem step_locals_of_ne {cfg : Config Owner Block} {s s' : State V Owner Block
     s'.locals w = s.locals w := by
   cases i with
   | proposal P =>
-    rw [LeanLinera.step] at h
+    rw [Linera.step] at h
     split_ifs at h <;> simp only [Option.some.injEq] at h <;> subst h <;>
       simp [locals_set_of_ne _ _ hw]
   | valCert B r =>
-    rw [LeanLinera.step] at h
+    rw [Linera.step] at h
     split_ifs at h <;> simp only [Option.some.injEq] at h <;> subst h <;>
       simp [locals_set_of_ne _ _ hw]
   | confCert B r =>
-    rw [LeanLinera.step] at h
+    rw [Linera.step] at h
     split_ifs at h; simp only [Option.some.injEq] at h; subst h
     simp [locals_set_of_ne _ _ hw]
   | timeout r =>
-    rw [LeanLinera.step] at h
+    rw [Linera.step] at h
     split_ifs at h; simp only [Option.some.injEq] at h; subst h
     simp [locals_set_of_ne _ _ hw]
   | timeoutCert r =>
-    rw [LeanLinera.step] at h
+    rw [Linera.step] at h
     split_ifs at h; simp only [Option.some.injEq] at h; subst h
     simp [locals_set_of_ne _ _ hw]
 
@@ -61,19 +61,19 @@ theorem step_log {cfg : Config Owner Block} {s s' : State V Owner Block} {v : V}
     s'.log = s.log ∨ ∃ e, s'.log = s.log ++ [e] := by
   cases i with
   | proposal P =>
-    rw [LeanLinera.step] at h
+    rw [Linera.step] at h
     split_ifs at h <;> simp only [Option.some.injEq] at h <;> subst h <;> simp
   | valCert B r =>
-    rw [LeanLinera.step] at h
+    rw [Linera.step] at h
     split_ifs at h <;> simp only [Option.some.injEq] at h <;> subst h <;> simp
   | confCert B r =>
-    rw [LeanLinera.step] at h
+    rw [Linera.step] at h
     split_ifs at h; simp only [Option.some.injEq] at h; subst h; simp
   | timeout r =>
-    rw [LeanLinera.step] at h
+    rw [Linera.step] at h
     split_ifs at h; simp only [Option.some.injEq] at h; subst h; simp
   | timeoutCert r =>
-    rw [LeanLinera.step] at h
+    rw [Linera.step] at h
     split_ifs at h; simp only [Option.some.injEq] at h; subst h; simp
 
 /-- Signatures persist across a step. -/
@@ -184,4 +184,4 @@ theorem run_each {cfg : Config Owner Block} (i : Input Owner Block) (m : Msg Blo
       · exact run_HSig h' hsig
       · exact hsig' w hw
 
-end LeanLinera
+end Linera

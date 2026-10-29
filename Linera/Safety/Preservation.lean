@@ -1,4 +1,4 @@
-import LeanLinera.Safety.Invariants
+import Linera.Safety.Invariants
 
 /-!
 # Preservation of the invariant across the acting validator's handlers
@@ -12,7 +12,7 @@ the frame lemmas of `Invariants.lean` for every other validator.
 `Inv.reachable` then establishes the invariant on every reachable state.
 -/
 
-namespace LeanLinera
+namespace Linera
 
 variable {V Owner Block : Type*} [Fintype V] [DecidableEq V] [Q : QuorumSystem V]
   [DecidableEq Owner] [DecidableEq Block]
@@ -513,7 +513,7 @@ theorem Inv.step {cfg : Config Owner Block} {s s' : State V Owner Block} (hs : I
     · exact (hs w hw).set_of_ne hwv l'
   cases i with
   | proposal P =>
-    rw [LeanLinera.step] at h
+    rw [Linera.step] at h
     split_ifs at h with hf hok hpre hacc
     · -- fast path
       simp only [Option.some.injEq] at h; subst h
@@ -535,7 +535,7 @@ theorem Inv.step {cfg : Config Owner Block} {s s' : State V Owner Block} (hs : I
         (fun lb hl => ⟨lb, hl, le_rfl⟩) (fun _ _ h => Or.inl h) (fun _ h => h) rfl
         (fun _ h => Or.inl h))
   | valCert B r =>
-    rw [LeanLinera.step] at h
+    rw [Linera.step] at h
     split_ifs at h with hok hcv
     · -- a confirmation vote is signed
       obtain ⟨hcert, _, _, hvalle, hlble⟩ := hok
@@ -575,7 +575,7 @@ theorem Inv.step {cfg : Config Owner Block} {s s' : State V Owner Block} (hs : I
       · simp [Local.afterValCert, hcv]
       · intro τ h'; left; simpa [Local.afterValCert, hcv] using h'
   | confCert B r =>
-    rw [LeanLinera.step] at h
+    rw [Linera.step] at h
     split_ifs at h with hok
     obtain ⟨hcert, _⟩ := hok
     simp only [Option.some.injEq] at h; subst h
@@ -585,12 +585,12 @@ theorem Inv.step {cfg : Config Owner Block} {s s' : State V Owner Block} (hs : I
     simp only [Local.afterConfCert, Option.some.injEq] at h'
     subst h'; exact Or.inr ⟨r, hcert⟩
   | timeout r =>
-    rw [LeanLinera.step] at h
+    rw [Linera.step] at h
     split_ifs at h with hok
     simp only [Option.some.injEq] at h; subst h
     exact frame_sign _ _ rfl (hvi.sign_time r _ hok.2.1 rfl rfl rfl rfl rfl rfl rfl)
   | timeoutCert r =>
-    rw [LeanLinera.step] at h
+    rw [Linera.step] at h
     split_ifs at h with hok
     simp only [Option.some.injEq] at h; subst h
     refine frame_set _ (hvi.set_self rfl rfl (le_max_left _ _) (fun _ h => Or.inl h)
@@ -608,4 +608,4 @@ theorem Inv.reachable {cfg : Config Owner Block} {s : State V Owner Block}
     obtain ⟨v, hv, i, hi⟩ := hstep
     exact ih.step hv hi
 
-end LeanLinera
+end Linera

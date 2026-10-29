@@ -1,4 +1,4 @@
-import LeanLinera.Committee
+import Linera.Committee
 
 /-!
 # Rounds, messages, proposals, and the per-chain configuration
@@ -12,7 +12,7 @@ super owner, `k` multi-leader rounds, then single-leader rounds with a
 designated leader (`appendix.tex`, Fast Round and Single-Leader Rounds).
 -/
 
-namespace LeanLinera
+namespace Linera
 
 /-- Round numbers. A notation rather than an `abbrev`, so that `omega`
 sees every round as a natural number. -/
@@ -111,4 +111,4 @@ instance (r : Round) (o : Owner) : Decidable (cfg.FastEligible r o) :=
 
 end Config
 
-end LeanLinera
+end Linera
