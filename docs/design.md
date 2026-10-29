@@ -486,7 +486,7 @@ Client side, resolving the Phase 4 questions:
 | 2 | invariant, `valCert_unique`, `safety`, `finalized_agree`, `vote_of_eligible`, `lock_validate`, monotonicity | done |
 | 3 | `Schedule`, `Liveness/Runs`, `Liveness/Fast`, `Liveness/Core` | done |
 | 4 | timed layer, round-growth, long-rounds, liveness theorem | done (no fast round) |
-| 5 | report.md with statements copied from source | open |
+| 5 | report.md with statements copied from source (`make report` checks them) | done |
 
 The invariant as implemented (`Safety/Invariants.lean`, `VInv`) has the six
 clauses of §4 plus: eligibility ghosts on validation and fast votes (for
@@ -496,12 +496,9 @@ lemma of Phase 3 consumes.
 
 ### Pending notes
 
-- **Ghost-field erasure.** The ghost fields `lockAt` and `prop` of `Sig`
-  are written by `step` and read by no handler; `HasCert` filters on
-  `signer` and `msg` only. This holds by inspection. A congruence lemma
-  (states with equal locals and equal `(signer, msg)` logs step to
-  successors with equal erasures) would make it hold by construction
-  against future edits. Not yet added; noted 2026-10-29.
+- **Ghost-field erasure.** Done (`Safety/Erasure.lean`, `step_erase`):
+  states with equal locals and equal `(signer, msg)` logs step to
+  successors with equal erasures, so no handler reads a ghost field.
 - **Reference implementation.** `~/git/linera-protocol`, notably the
   `linera-core` crate (client proposal loop) and `linera-chain`
   (`ChainManager`, the validator-side per-height state). Consult it for
