@@ -328,7 +328,7 @@ structure Env where
   propose : ∀ t, GST ≤ t → ∀ r, cfg.IsSingle r → (∀ o', cfg.Eligible r o' ↔ o' = o) →
     (∀ v ∈ Q.honest, ex.cur v t = r) → ¬ ex.Done t →
     ∃ P t_q, t ≤ t_q ∧ t_q ≤ t + L ∧ prop r = some P ∧ P.round = r ∧ P.owner = o ∧
-      cfg.Valid P.block ∧ JustRule (ex.st t_q) P ∧
+      cfg.Valid P.block ∧ JustRule cfg (ex.st t_q) P ∧
       (∀ v ∈ Q.honest, ∃ t', t_q ≤ t' ∧ t' ≤ t + L ∧ ex.act t' = some (v, .proposal P)) ∧
       (∀ t' < t_q, ∀ v, ex.act t' ≠ some (v, .proposal P))
   /-- A validation certificate for a block in a round the owner leads solely reaches
@@ -340,21 +340,32 @@ structure Env where
   leader : ∀ N, ∃ r, N ≤ r ∧ cfg.IsSingle r ∧ ∀ o', cfg.Eligible r o' ↔ o' = o
   /-- Round durations grow. -/
   inc_pos : 0 < tm.inc
-  /-- No fast round. -/
-  no_fast : cfg.fast = false
+  /-- The super owner's fast block, if any. -/
+  fastBlock : Option Block
+  /-- The super owner does not equivocate: every fast-round proposal, and every
+  re-proposal carrying the fast-round signature, is of its one fast block. -/
+  fast_honest : ∀ t v P, ex.act t = some (v, .proposal P) →
+    (cfg.IsFast P.round ∨ P.just = .fast) → fastBlock = some P.block
+  /-- No fast-round proposal is still in flight after `GST`. -/
+  fast_quiet : ∀ t, GST ≤ t → ∀ v P, ex.act t = some (v, .proposal P) → ¬ cfg.IsFast P.round
 ```
 
 `JustRule` is the paper's re-proposal rule: re-propose the newest
-locking block with itself as justification, or a fresh block if no
-honest validator holds one.
+locking block with itself as justification (a validation certificate, or
+the fast-round proposal with the super owner's signature), or a fresh
+block if no honest validator holds one.
 
 ```lean
-def JustRule (s : State V Owner Block) (P : Proposal Owner Block) : Prop
+def JustRule (cfg : Config Owner Block) (s : State V Owner Block) (P : Proposal Owner Block) :
+    Prop
 ```
 
 The obligations `propose` and `cert` abstract the owner's loop into the
 constant `L`; `propose` also assumes the owner reads every honest
-validator's locking block (design.md, F7). The fast round is excluded.
+validator's locking block (design.md, F7). The fast round is covered
+under `fast_honest` and `fast_quiet`: the super owner proposes a single
+fast block, and no fast-round proposal is still in flight after `GST`;
+the first is the paper's hypothesis that no super owner equivocates.
 
 ### 4.3 Round growth and liveness
 
@@ -384,14 +395,16 @@ round is for the owner's block:
 
 ```lean
 theorem winAt_step {s₀ s s' : State V Owner Block} {P : Proposal Owner Block} {r : Round}
-    (hr : cfg.firstSL < r) (hnf : cfg.fast = false) (hs : Inv cfg s) {v : V} (hv : v ∈ Q.honest)
+    (hr : cfg.firstSL < r) (hnf : ¬ cfg.IsFast r) (hs : Inv cfg s) {v : V} (hv : v ∈ Q.honest)
     (hcur : (s.locals v).cur = r) (hle : ∀ w ∈ Q.honest, (s.locals w).cur ≤ r)
     {w : V} {i : Input Owner Block} (hst : step cfg s w i = some s')
+    (hq : ∀ P', i = .proposal P' → ¬ cfg.IsFast P'.round)
     (hvalP : ∀ u ∈ Q.honest, ∀ B, s'.HSig u (.val B r) → B = P.block)
     (hwin : WinAt s₀ s P r v) : WinAt s₀ s' P r v
 ```
 
-**Liveness** (paper, Theorem liveness):
+**Liveness** (paper, Theorem liveness), with the fast round allowed and
+the hypothesis that the super owner does not equivocate:
 
 ```lean
 theorem Env.liveness : ∃ t, ex.Done t
@@ -411,7 +424,7 @@ reaches everyone, and every honest validator confirms.
 
 ## 5. What is not covered
 
-The fast round in the timed theorem; the validator fallback rounds and
+The validator fallback rounds and
 the pseudo-random leader schedule of the implementation (the schedule is
 an abstract parameter with a fairness obligation); open multi-leader
 rounds; the unlocking-round attestation; the owner as an explicit state

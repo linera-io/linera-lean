@@ -25,8 +25,9 @@ timed execution after a global stabilisation time `GST` with delay bound
 * **leader**: the schedule designates the honest owner as sole leader of
   single-leader rounds beyond any bound (Lemma honest-single-leader);
 * **inc_pos**: round durations grow (Lemma long-rounds);
-* **no_fast**: the chain has no fast round (the fast-round extension is
-  not covered by the timed theorem).
+* **fast_honest**, **fast_quiet**: the super owner, if any, proposes a
+  single fast block and no fast-round proposal is still in flight after
+  `GST` (Theorem liveness's hypothesis that no super owner equivocates).
 
 Each obligation allows the escape "a block has been confirmed", since a
 finalized validator takes no further step.
@@ -55,12 +56,17 @@ theorem done_of_finalized {t : ℕ} {v : V} (hv : v ∈ Q.honest) {B : Block}
     (h : ((ex.st t).locals v).finalized = some B) : ex.Done t :=
   let ⟨r, hr⟩ := (ex.inv t v hv).finalized_cert B h; ⟨B, r, hr⟩
 
-/-- The paper's re-proposal rule (Alg. client_propose, lines 13–15),
-without a fast round: re-propose the newest locking block with itself as
-justification, or a fresh block if no honest validator holds one. -/
-def JustRule (s : State V Owner Block) (P : Proposal Owner Block) : Prop :=
+/-- The paper's re-proposal rule (Alg. client_propose, lines 13–15):
+re-propose the newest locking block with itself as justification — a
+validation certificate, or the fast-round proposal with the super owner's
+signature — or a fresh block if no honest validator holds one. -/
+def JustRule (cfg : Config Owner Block) (s : State V Owner Block) (P : Proposal Owner Block) :
+    Prop :=
   (∃ B ρ w, w ∈ Q.honest ∧ (s.locals w).lb = some (.cert B ρ) ∧
     (∀ v ∈ Q.honest, ∀ lb ∈ (s.locals v).lb, lb.round ≤ ρ) ∧ P.just = .cert B ρ ∧ P.block = B) ∨
+  (∃ B w, w ∈ Q.honest ∧ (s.locals w).lb = some (.fast B) ∧
+    (∀ v ∈ Q.honest, (s.locals v).lb = none ∨ (s.locals v).lb = some (.fast B)) ∧
+    P.just = .fast ∧ P.block = B ∧ cfg.fast = true) ∨
   ((∀ v ∈ Q.honest, (s.locals v).lb = none) ∧ P.just = .none)
 
 /-- The environment of a timed execution. -/
@@ -91,7 +97,7 @@ structure Env where
   propose : ∀ t, GST ≤ t → ∀ r, cfg.IsSingle r → (∀ o', cfg.Eligible r o' ↔ o' = o) →
     (∀ v ∈ Q.honest, ex.cur v t = r) → ¬ ex.Done t →
     ∃ P t_q, t ≤ t_q ∧ t_q ≤ t + L ∧ prop r = some P ∧ P.round = r ∧ P.owner = o ∧
-      cfg.Valid P.block ∧ JustRule (ex.st t_q) P ∧
+      cfg.Valid P.block ∧ JustRule cfg (ex.st t_q) P ∧
       (∀ v ∈ Q.honest, ∃ t', t_q ≤ t' ∧ t' ≤ t + L ∧ ex.act t' = some (v, .proposal P)) ∧
       (∀ t' < t_q, ∀ v, ex.act t' ≠ some (v, .proposal P))
   /-- A validation certificate for a block in a round the owner leads solely reaches
@@ -103,22 +109,30 @@ structure Env where
   leader : ∀ N, ∃ r, N ≤ r ∧ cfg.IsSingle r ∧ ∀ o', cfg.Eligible r o' ↔ o' = o
   /-- Round durations grow. -/
   inc_pos : 0 < tm.inc
-  /-- No fast round. -/
-  no_fast : cfg.fast = false
+  /-- The super owner's fast block, if any. -/
+  fastBlock : Option Block
+  /-- The super owner does not equivocate: every fast-round proposal, and every
+  re-proposal carrying the fast-round signature, is of its one fast block. -/
+  fast_honest : ∀ t v P, ex.act t = some (v, .proposal P) →
+    (cfg.IsFast P.round ∨ P.just = .fast) → fastBlock = some P.block
+  /-- No fast-round proposal is still in flight after `GST`. -/
+  fast_quiet : ∀ t, GST ≤ t → ∀ v P, ex.act t = some (v, .proposal P) → ¬ cfg.IsFast P.round
 
 /-! ### Consequences -/
 
 omit [Fintype V] [DecidableEq V] Q [DecidableEq Owner] [DecidableEq Block] in
-/-- Without a fast round, no round is fast. -/
-theorem not_isFast_of_no_fast (hnf : cfg.fast = false) (r : Round) : ¬ cfg.IsFast r := by
-  rintro ⟨h1, _⟩; rw [hnf] at h1; exact Bool.false_ne_true h1
+/-- A single-leader round is not the fast round. -/
+theorem not_isFast_of_isSingle {r : Round} (hr : cfg.IsSingle r) : ¬ cfg.IsFast r := by
+  rintro ⟨h1, h0⟩
+  unfold Config.IsSingle Config.firstSL Config.firstMulti at hr
+  rw [h1] at hr; simp at hr; omega
 
 omit [DecidableEq Owner] [DecidableEq Block] in
 /-- A single-leader round has a duration, growing with its index. -/
-theorem dur_single (hnf : cfg.fast = false) {r : Round} (hr : cfg.IsSingle r) :
+theorem dur_single {r : Round} (hr : cfg.IsSingle r) :
     tm.dur cfg r = some (tm.base + (r - cfg.firstSL) * tm.inc) := by
   unfold Timeouts.dur
-  rw [ite_eq_right (not_isFast_of_no_fast hnf r), ite_eq_left hr]
+  rw [ite_eq_right (not_isFast_of_isSingle hr), ite_eq_left hr]
 
 /-- Every log entry answering a proposal was created by an attempt of that proposal. -/
 theorem log_entry_act (t : ℕ) : ∀ e ∈ (ex.st t).log, ∀ P, e.prop = some P →
@@ -237,6 +251,60 @@ theorem val_of_sole (env : ex.Env) {r : Round} (hsole : ∀ o', cfg.Eligible r o
   rw [hs] at hact
   refine ⟨P, t', ?_, hB, hr, ht', hact⟩
   rw [← hr]; exact env.owner_prop t' v P hact ho
+
+/-- Every fast-round locking block is of the super owner's fast block: it
+was set by confirming a fast-round proposal or by a proposal carrying the
+fast-round signature. -/
+theorem lb_fast_block (env : ex.Env) (t : ℕ) : ∀ v B',
+    ((ex.st t).locals v).lb = some (.fast B') → env.fastBlock = some B' := by
+  induction t with
+  | zero => intro v B' h; rw [ex.zero] at h; simp [State.init, Local.init] at h
+  | succ t ih =>
+    intro v B' h
+    rw [ex.succ] at h
+    rcases hact : ex.act t with _ | ⟨w, i⟩ <;> rw [hact] at h
+    · exact ih v B' h
+    simp only [stepOpt] at h
+    rcases hst : step cfg (ex.st t) w i with _ | s' <;> rw [hst] at h
+    · exact ih v B' h
+    simp only [Option.getD_some] at h
+    by_cases hwv : v = w
+    swap
+    · rw [step_locals_of_ne hst hwv] at h; exact ih v B' h
+    subst hwv
+    cases i with
+    | proposal P =>
+      rw [LeanLinera.step] at hst
+      split_ifs at hst with hf hok hpre hacc <;> simp only [Option.some.injEq] at hst <;> subst hst
+      · simp only [locals_sign, locals_set_self, Local.afterFast, Option.some.injEq,
+          Locking.fast.injEq] at h
+        subst h; exact env.fast_honest t v P hact (Or.inl hf)
+      · simp only [locals_sign, locals_set_self, Local.afterVal] at h
+        rcases ((ex.st t).locals v).lbAfter_fast P h with h | ⟨_, hj, rfl⟩
+        · exact ih v B' h
+        · exact env.fast_honest t v P hact (Or.inr hj)
+      · simp only [locals_set_self, Local.afterBump] at h; exact ih v B' h
+    | valCert B r =>
+      rw [LeanLinera.step] at hst
+      split_ifs at hst with hok hcv <;> simp only [Option.some.injEq] at hst <;> subst hst
+      · have : (((ex.st t).locals v).afterValCert B r).lb = some (.cert B r) := by
+          simp [Local.afterValCert, hcv]
+        simp only [locals_sign, locals_set_self] at h; rw [this] at h; cases h
+      · have : (((ex.st t).locals v).afterValCert B r).lb = some (.cert B r) := by
+          simp [Local.afterValCert, hcv]
+        simp only [locals_set_self] at h; rw [this] at h; cases h
+    | confCert B r =>
+      rw [LeanLinera.step] at hst
+      split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst
+      simp only [locals_set_self, Local.afterConfCert] at h; exact ih v B' h
+    | timeout r =>
+      rw [LeanLinera.step] at hst
+      split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst
+      simp only [locals_sign, locals_set_self, Local.afterTimeout] at h; exact ih v B' h
+    | timeoutCert r =>
+      rw [LeanLinera.step] at hst
+      split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst
+      simp only [locals_set_self, Local.afterTimeoutCert] at h; exact ih v B' h
 
 /-- Lists of honest validators: there is one containing every honest
 validator, without duplicates. -/

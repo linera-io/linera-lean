@@ -81,6 +81,8 @@ structure VInv (cfg : Config Owner Block) (s : State V Owner Block) (v : V) : Pr
   conf_le_lock : ∀ B ρ, s.HSig v (.conf B ρ) → ∃ lk ∈ (s.locals v).lock, ρ ≤ lk.2
   /-- A locking block that is a certificate exists. -/
   lb_cert : ∀ B ρ, (s.locals v).lb = some (.cert B ρ) → s.ValCert B ρ
+  /-- With a fast-round proposal as locking block, the lock, if any, is on its block. -/
+  lock_fast : ∀ lk ∈ (s.locals v).lock, ∀ B', (s.locals v).lb = some (.fast B') → lk.1 = B'
   /-- Every validation vote carries its ghost justification. -/
   val_ghost : ∀ e ∈ s.log, e.signer = v → ∀ B r, e.msg = .val B r → ValGhost cfg s v e B r
   /-- A confirmation vote in the fast round answered a proposal by the super owner. -/
@@ -115,6 +117,7 @@ theorem VInv.init (cfg : Config Owner Block) (v : V) :
   lock_conf lk h := by simp [State.init, Local.init] at h
   conf_le_lock B ρ h := absurd h (HSig_init v _)
   lb_cert B ρ h := by simp [State.init, Local.init] at h
+  lock_fast lk h := by simp [State.init, Local.init] at h
   val_ghost e he := by simp [State.init] at he
   fast_elig e he := by simp [State.init] at he
   finalized_cert B h := by simp [State.init, Local.init] at h
@@ -205,6 +208,7 @@ theorem VInv.sign_of_ne {cfg : Config Owner Block} {s : State V Owner Block} {v 
   lock_conf lk hlk := (hv.lock_conf lk hlk).sign e
   conf_le_lock B ρ hs := hv.conf_le_lock B ρ ((HSig_sign_of_ne h _).1 hs)
   lb_cert B ρ hl := (hv.lb_cert B ρ hl).sign e
+  lock_fast := hv.lock_fast
   val_ghost e' he' hs B r hm := by
     simp only [log_sign, List.mem_append, List.mem_singleton] at he'
     rcases he' with he' | rfl
@@ -233,6 +237,8 @@ theorem VInv.set_of_ne {cfg : Config Owner Block} {s : State V Owner Block} {v w
   lock_conf lk hlk := by rw [locals_set_of_ne _ _ h] at hlk; exact hv.lock_conf lk hlk
   conf_le_lock B ρ hs := by rw [locals_set_of_ne _ _ h]; exact hv.conf_le_lock B ρ hs
   lb_cert B ρ hl := by rw [locals_set_of_ne _ _ h] at hl; exact hv.lb_cert B ρ hl
+  lock_fast lk hlk B' hl := by
+    rw [locals_set_of_ne _ _ h] at hlk hl; exact hv.lock_fast lk hlk B' hl
   val_ghost e he hs B r hm := (hv.val_ghost e he hs B r hm).set w l
   fast_elig := hv.fast_elig
   finalized_cert B hf := by rw [locals_set_of_ne _ _ h] at hf; exact hv.finalized_cert B hf

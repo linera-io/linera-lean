@@ -36,7 +36,7 @@ for each:
 | Alg. client_propose rule | the newest locking block re-proposed passes every lock | `acceptable_of_highest_lb`, `acceptable_of_fast_lb`, `acceptable_of_no_lock`, `wellFormed_of_highest_lb` | done |
 | Lem. round-growth | every round is eventually reached by every honest validator, or a block is confirmed | `TExec.Env.reach_round` (`advance_single`, `advance_multi_list`) | done |
 | Lem. long-rounds | a single-leader round beyond `firstSL + Δ + 2L + 2` lasts long enough (linear durations) | inside `TExec.Env.liveness` (`hdbig`) | done |
-| Thm. liveness | an honest active owner + partial synchrony ⇒ a block is confirmed (no fast round) | `TExec.Env.liveness` | done |
+| Thm. liveness | an honest active owner + partial synchrony + no super-owner equivocation ⇒ a block is confirmed | `TExec.Env.liveness` | done |
 
 Out of scope: cross-chain messaging, execution semantics (`Exec`), ownership
 changes between heights (the instance is single-shot, so the owner set is a
@@ -376,6 +376,17 @@ Already visible from reading the appendix against the algorithms:
   timeouts, which is the accepted stance; the obligation records the
   assumption rather than a defect. (Corrected 2026-10-29: an earlier
   version of this note mistook the fraction for a fixed duration.)
+- **F8. The lite benchmark client as an equivocating super owner (branch
+  `harnen/quorum-only-benchmark`, checked 2026-10-29).** The branch changes
+  no validator-side consensus code. Its benchmark client proposes only in
+  the fast round and, after a failed block, proposes a *different* block
+  at the same height in the fast round again. Validators that confirmed
+  the first proposal refuse the second (it is not newer than their locking
+  block). Under the model this is super-owner equivocation: `safety`
+  holds, liveness does not, and with `fast_round_duration = None` the
+  height stays wedged. The production client refuses to drop a submitted
+  fast proposal for this reason. In `--quorum-only` mode the trigger is a
+  slow validator whose vote arrives after the grace period.
 - **F6. Fast-round locks are invisible to the client's query.** A
   confirmation vote in a fast round locks the validator on `(B₀, 0)` with
   no validation certificate, so `knownValCert` never records it. After a
@@ -485,7 +496,7 @@ Client side, resolving the Phase 4 questions:
 | 1 | `Committee`, `Messages`, `Validator`, `Protocol`; 4-validator witness executions | done |
 | 2 | invariant, `valCert_unique`, `safety`, `finalized_agree`, `vote_of_eligible`, `lock_validate`, monotonicity | done |
 | 3 | `Schedule`, `Liveness/Runs`, `Liveness/Fast`, `Liveness/Core` | done |
-| 4 | timed layer, round-growth, long-rounds, liveness theorem | done (no fast round) |
+| 4 | timed layer, round-growth, long-rounds, liveness theorem | done (fast round included) |
 | 5 | report.md with statements copied from source (`make report` checks them) | done |
 
 The invariant as implemented (`Safety/Invariants.lean`, `VInv`) has the six
@@ -518,8 +529,12 @@ a timeout certificate for it that existed strictly earlier.
 `Liveness/Timed/Env.lean`: the environment `Env` — `GST`, `Δ`, `L`, the
 honest owner `o` and its per-round proposal — with obligations
 `leave_multi`, `timeout`, `tc`, `propose`, `cert`, `leader`, `inc_pos`,
-`no_fast`, each allowing the escape "a block has been confirmed". The
-re-proposal rule `JustRule` is the paper's.
+`fast_honest` (the super owner proposes a single fast block: no
+equivocation) and `fast_quiet` (no fast-round proposal in flight after
+`GST`), each allowing the escape "a block has been confirmed". The
+re-proposal rule `JustRule` is the paper's, including the fast branch.
+The invariant gained `lock_fast` (a fast-round lock is on the block of
+the fast locking block) for the fast branch's acceptability.
 
 `Liveness/Timed/Liveness.lean`: `Env.reach_round` (round growth), the
 window invariant `WinAt` of the good round (`winAt_step`), and
@@ -530,8 +545,8 @@ can leave before the duration, the proposal read at `t_q` passes every
 lock (locks are frozen in the window except by confirming the owner's own
 block), and the certificate is confirmed by all.
 
-Not covered by the timed theorem: the fast round (`no_fast`), the
-validator fallback rounds, open multi-leader rounds. The obligations
+Not covered by the timed theorem: the validator fallback rounds, open
+multi-leader rounds. The obligations
 `propose` and `cert` abstract the owner's loop into the constant `L`; a
 model of the owner as a state machine with polling and the grace period
 would discharge them, under the assumption recorded as F7 below.

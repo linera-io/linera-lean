@@ -63,7 +63,7 @@ theorem Env.advance_single {r t : ℕ} (hr : cfg.IsSingle r) (hg : env.GST ≤ t
     exact env.all_gt_of_tc hg (ex.HasCert_mono ht₀.le htc)
   push Not at hex
   have heq : ∀ v ∈ Q.honest, ex.cur v t = r := fun v hv => le_antisymm (hex v hv) (hall v hv)
-  obtain ⟨d, hd⟩ : ∃ d, tm.dur cfg r = some d := ⟨_, dur_single env.no_fast hr⟩
+  obtain ⟨d, hd⟩ : ∃ d, tm.dur cfg r = some d := ⟨_, dur_single hr⟩
   -- at `T`, every honest validator has signed `Time(r)`, passed `r`, or confirmed
   have hT : ∀ v ∈ Q.honest, (ex.st (t + d + env.Δ)).HSig v (.time r) ∨
       r < ex.cur v (t + d + env.Δ) ∨ ex.Done (t + d + env.Δ) := by
@@ -167,9 +167,10 @@ def WinAt (s₀ s : State V Owner Block) (P : Proposal Owner Block) (r : Round) 
 validator is at or below `r`, `v` is at `r`, and every validation vote in
 `r` is for `P.block`. -/
 theorem winAt_step {s₀ s s' : State V Owner Block} {P : Proposal Owner Block} {r : Round}
-    (hr : cfg.firstSL < r) (hnf : cfg.fast = false) (hs : Inv cfg s) {v : V} (hv : v ∈ Q.honest)
+    (hr : cfg.firstSL < r) (hnf : ¬ cfg.IsFast r) (hs : Inv cfg s) {v : V} (hv : v ∈ Q.honest)
     (hcur : (s.locals v).cur = r) (hle : ∀ w ∈ Q.honest, (s.locals w).cur ≤ r)
     {w : V} {i : Input Owner Block} (hst : step cfg s w i = some s')
+    (hq : ∀ P', i = .proposal P' → ¬ cfg.IsFast P'.round)
     (hvalP : ∀ u ∈ Q.honest, ∀ B, s'.HSig u (.val B r) → B = P.block)
     (hwin : WinAt s₀ s P r v) : WinAt s₀ s' P r v := by
   by_cases hwv : w = v
@@ -187,7 +188,7 @@ theorem winAt_step {s₀ s s' : State V Owner Block} {P : Proposal Owner Block} 
   | proposal P' =>
     rw [LeanLinera.step] at hst
     split_ifs at hst with hf hok hpre hacc <;> simp only [Option.some.injEq] at hst <;> subst hst
-    · exact absurd (hok.2.1.1) (not_isFast_of_no_fast hnf _)
+    · exact absurd hf (hq P' rfl)
     · -- validated: the proposal is for `r` and for `P.block`
       have hro := hpre.1.2.2.2.1
       unfold Local.roundOk at hro
@@ -205,7 +206,7 @@ theorem winAt_step {s₀ s s' : State V Owner Block} {P : Proposal Owner Block} 
         refine ⟨hB ▸ hsig, ?_, ?_⟩
         · simp only [locals_sign, locals_set_self, Local.afterVal, hB, hPr]
         · simp only [locals_sign, locals_set_self, Local.afterVal]
-          exact Local.lbAfter_lt hPr hpre.1.2.2.1 (not_isFast_of_no_fast hnf r) hlb
+          exact Local.lbAfter_lt hPr hpre.1.2.2.1 hnf hlb
       · exfalso
         have := hpre.1.2.2.2.2.1 (P.block, r) (by rw [hvv]; rfl)
         rw [hPr] at this; exact lt_irrefl _ this
@@ -276,7 +277,8 @@ include env in
 /-- **Liveness** (paper, Theorem liveness): under the environment — an
 honest active owner, partial synchrony after `GST`, a schedule that
 designates the owner as sole leader beyond any round, growing round
-durations, and no fast round — some block is eventually confirmed. -/
+durations, and a super owner that does not equivocate — some block is
+eventually confirmed. -/
 theorem Env.liveness : ∃ t, ex.Done t := by
   classical
   obtain ⟨w₀, hw₀, _⟩ := Q.exists_honest_mem Q.quorum_honest
@@ -289,15 +291,15 @@ theorem Env.liveness : ∃ t, ex.Done t := by
   have hR2 : R + 2 ≤ r := (le_max_left _ _).trans hrN
   have hrSL : cfg.firstSL + env.Δ + 2 * env.L + 2 ≤ r := (le_max_right _ _).trans hrN
   have hr1 : cfg.firstSL < r := by omega
-  obtain ⟨d, hd⟩ : ∃ d, tm.dur cfg r = some d := ⟨_, dur_single env.no_fast hrs⟩
+  obtain ⟨d, hd⟩ : ∃ d, tm.dur cfg r = some d := ⟨_, dur_single hrs⟩
   have hdbig : env.Δ + 2 * env.L + 2 ≤ d := by
-    rw [dur_single env.no_fast hrs] at hd
+    rw [dur_single hrs] at hd
     simp only [Option.some.injEq] at hd
     have h2 : r - cfg.firstSL ≤ (r - cfg.firstSL) * tm.inc :=
       Nat.le_mul_of_pos_right _ env.inc_pos
     omega
   have hrs' : cfg.IsSingle (r - 1) := by unfold Config.IsSingle at *; omega
-  have hnf := not_isFast_of_no_fast env.no_fast
+  have hnfr : ¬ cfg.IsFast r := not_isFast_of_isSingle hrs
   -- every honest validator reaches `r`
   obtain ⟨t, _, ht⟩ := env.reach_round r
   rcases ht with ht | ht
@@ -389,19 +391,34 @@ theorem Env.liveness : ∃ t, ex.Done t := by
   -- the proposal is well formed from `tq` on
   have hwf : ∀ u, tq ≤ u → P.WellFormed cfg (ex.st u) r := by
     intro u hu
-    refine ⟨hPr, hnf r, (hsole P.owner).2 hPo, hPv, ?_, ?_⟩
+    refine ⟨hPr, hnfr, (hsole P.owner).2 hPo, hPv, ?_, ?_⟩
     · unfold Local.JustOk
-      rcases hrule with ⟨B, ρ, w, hw, hlbw, _, hj, hB⟩ | ⟨_, hj⟩
+      rcases hrule with ⟨B, ρ, w, hw, hlbw, _, hj, hB⟩ | ⟨B, w, hw, hlbw, _, hj, hB, hfast⟩ |
+        ⟨_, hj⟩
       · rw [hj]; exact ⟨hB.symm, by rw [hPr]; exact hlb_lt w hw _ hlbw⟩
+      · rw [hj]; exact ⟨hfast, hPr ▸ hnfr⟩
       · rw [hj]; trivial
-    · rcases hrule with ⟨B, ρ, w, hw, hlbw, _, hj, hB⟩ | ⟨_, hj⟩
+    · rcases hrule with ⟨B, ρ, w, hw, hlbw, _, hj, hB⟩ | ⟨B, w, hw, hlbw, _, hj, hB, hfast⟩ |
+        ⟨_, hj⟩
       · unfold State.JustCert; rw [hj]
         exact ex.HasCert_mono hu ((ex.inv tq w hw).lb_cert B ρ hlbw)
       · unfold State.JustCert; rw [hj]; trivial
+      · unfold State.JustCert; rw [hj]; trivial
   -- the proposal passes every lock as of `tq`
   have hacc_tq : ∀ v ∈ Q.honest, ((ex.st tq).locals v).lockOk cfg P := by
-    rcases hrule with ⟨B, ρ, w, hw, hlbw, hmax, hj, hB⟩ | ⟨hnone, hj⟩
+    rcases hrule with ⟨B, ρ, w, hw, hlbw, hmax, hj, hB⟩ | ⟨B, w, hw, hlbw, hall, hj, hB, hfast⟩ |
+      ⟨hnone, hj⟩
     · exact acceptable_of_highest_lb (ex.inv tq) hw hlbw hmax P hj hB
+    · refine acceptable_of_fast_lb (cfg := cfg) ?_ P hj hB
+      intro v hv lk hlk
+      have hvi := ex.inv tq v hv
+      obtain ⟨lb, hlb, hle⟩ := hvi.conf_bound lk.1 lk.2 (hvi.lock_conf lk hlk)
+      rcases hall v hv with hn | hf
+      · rw [hn] at hlb; exact absurd hlb (Option.not_mem_none _)
+      · rw [hf, Option.mem_def, Option.some.injEq] at hlb
+        subst hlb
+        have h0 : lk.2 = 0 := Nat.le_zero.1 hle
+        exact ⟨hvi.lock_fast lk hlk B hf, ⟨hfast, h0⟩⟩
     · intro v hv lk hlk
       obtain ⟨lb, hlb, _⟩ :=
         (ex.inv tq v hv).conf_bound lk.1 lk.2 ((ex.inv tq v hv).lock_conf lk hlk)
@@ -421,8 +438,9 @@ theorem Env.liveness : ∃ t, ex.Done t := by
       rcases hst : step cfg (ex.st u) w i with _ | s'
       · exact ih
       simp only [Option.getD_some]
-      refine winAt_step hr1 env.no_fast (ex.inv u) hv (hcur_w u (by omega) (by omega) v hv)
-        (fun w' hw' => hle_r u (by omega) w' hw') hst ?_ ih
+      refine winAt_step hr1 hnfr (ex.inv u) hv (hcur_w u (by omega) (by omega) v hv)
+        (fun w' hw' => hle_r u (by omega) w' hw') hst
+        (fun P' hi => by subst hi; exact env.fast_quiet u (by omega) w P' hact) ?_ ih
       intro u' hu' B h
       have : (ex.st (u + 1)).HSig u' (.val B r) := by
         rw [ex.succ, hact]; simp only [stepOpt, hst, Option.getD_some]; exact h
@@ -459,7 +477,7 @@ theorem Env.liveness : ∃ t, ex.Done t := by
           exact hle.trans_lt (hlb_lt v hv lb hlb')
       have hlock : ((ex.st tv).locals v).lockOk cfg P := by
         unfold Local.lockOk; rw [hlk]; exact hacc_tq v hv
-      have hstep := step_val (by rw [hPr]; exact hnf r)
+      have hstep := step_val (by rw [hPr]; exact hnfr)
         (Local.preOk_of_fresh (hwf tv htv₁) hfresh) (hwf tv htv₁).cert hlock hPv
       have hsig : (ex.st (tv + 1)).HSig v (.val P.block r) := by
         rw [ex.succ, hactv]; simp only [stepOpt, hstep, Option.getD_some]
@@ -477,7 +495,7 @@ theorem Env.liveness : ∃ t, ex.Done t := by
       obtain ⟨v, hv, hnv⟩ := hall
       rcases hatt' v hv with h | h | h
       · exact absurd h hnv
-      · exact (ex.inv _ v hv).conf_valCert P.block r h (hnf r)
+      · exact (ex.inv _ v hv).conf_valCert P.block r h hnfr
       · exact absurd h hdone₃
   -- it reaches everyone, and everyone confirms
   have hconf : ∀ v ∈ Q.honest, (ex.st (tc + env.Δ + 2 * env.L + 2)).HSig v (.conf P.block r) ∨
