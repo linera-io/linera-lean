@@ -363,6 +363,19 @@ Authenticity), and two `knownValCert` clauses (its entries are
 certificates; a two-phase lock is recorded there) that the proposal-rule
 lemma of Phase 3 consumes.
 
+### Pending notes
+
+- **Ghost-field erasure.** The ghost fields `lockAt` and `prop` of `Sig`
+  are written by `step` and read by no handler; `HasCert` filters on
+  `signer` and `msg` only. This holds by inspection. A congruence lemma
+  (states with equal locals and equal `(signer, msg)` logs step to
+  successors with equal erasures) would make it hold by construction
+  against future edits. Not yet added; noted 2026-10-29.
+- **Reference implementation.** `~/git/linera-protocol`, notably the
+  `linera-core` crate (client proposal loop) and `linera-chain`
+  (`ChainManager`, the validator-side per-height state). Consult it for
+  protocol questions before asking.
+
 ### Phase 4 design points to settle before starting
 
 1. **Owner loop ordering.** Forward `TimeoutCert(r−1)` first, then query
