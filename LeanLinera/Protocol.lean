@@ -24,8 +24,7 @@ behaviour of the timed protocol and the safety theorems carry over.
 
 namespace LeanLinera
 
-variable {V : Type*} [Fintype V] [DecidableEq V] [Q : QuorumSystem V]
-variable {Owner Block : Type*} [DecidableEq Owner] [DecidableEq Block]
+variable {V Owner Block : Type*}
 
 /-- An honest signature with its ghost justification. -/
 structure Sig (V Owner Block : Type*) where
@@ -52,12 +51,63 @@ namespace State
 def init : State V Owner Block := ⟨fun _ => Local.init, []⟩
 
 /-- Replace one validator's local state. -/
-def set (s : State V Owner Block) (v : V) (l : Local Block) : State V Owner Block :=
+def set [DecidableEq V] (s : State V Owner Block) (v : V) (l : Local Block) :
+    State V Owner Block :=
   { s with locals := Function.update s.locals v l }
 
 /-- Append a signature. -/
 def sign (s : State V Owner Block) (e : Sig V Owner Block) : State V Owner Block :=
   { s with log := s.log ++ [e] }
+
+/-- An honest signature of `v` on `m` is in the log. -/
+def HSig (s : State V Owner Block) (v : V) (m : Msg Block) : Prop :=
+  ∃ e ∈ s.log, e.signer = v ∧ e.msg = m
+
+/-! ### Basic lemmas -/
+
+section Basic
+
+variable [DecidableEq V]
+
+@[simp] theorem locals_set_self (s : State V Owner Block) (v : V) (l : Local Block) :
+    (s.set v l).locals v = l := by simp [set]
+
+@[simp] theorem locals_set_of_ne (s : State V Owner Block) {v w : V} (l : Local Block)
+    (h : w ≠ v) : (s.set v l).locals w = s.locals w := by simp [set, h]
+
+@[simp] theorem log_set (s : State V Owner Block) (v : V) (l : Local Block) :
+    (s.set v l).log = s.log := rfl
+
+theorem HSig_set (s : State V Owner Block) (w : V) (l : Local Block) (v : V) (m : Msg Block) :
+    (s.set w l).HSig v m ↔ s.HSig v m := Iff.rfl
+
+end Basic
+
+@[simp] theorem log_sign (s : State V Owner Block) (e : Sig V Owner Block) :
+    (s.sign e).log = s.log ++ [e] := rfl
+
+@[simp] theorem locals_sign (s : State V Owner Block) (e : Sig V Owner Block) :
+    (s.sign e).locals = s.locals := rfl
+
+theorem HSig_sign (s : State V Owner Block) (e : Sig V Owner Block) (v : V) (m : Msg Block) :
+    (s.sign e).HSig v m ↔ s.HSig v m ∨ (e.signer = v ∧ e.msg = m) := by
+  simp only [HSig, log_sign, List.mem_append, List.mem_singleton]
+  constructor
+  · rintro ⟨e', he' | he', h⟩
+    · exact Or.inl ⟨e', he', h⟩
+    · subst he'; exact Or.inr h
+  · rintro (⟨e', he', h⟩ | h)
+    · exact ⟨e', Or.inl he', h⟩
+    · exact ⟨e, Or.inr rfl, h⟩
+
+theorem HSig.sign {s : State V Owner Block} {v : V} {m : Msg Block} (h : s.HSig v m)
+    (e : Sig V Owner Block) : (s.sign e).HSig v m := (HSig_sign s e v m).2 (Or.inl h)
+
+/-! ### Certificates -/
+
+section Cert
+
+variable [Fintype V] [DecidableEq V] [Q : QuorumSystem V] [DecidableEq Block]
 
 /-- `v`'s signature on `m` is available: `v` is Byzantine, or honest and signed it. -/
 def Signed (s : State V Owner Block) (v : V) (m : Msg Block) : Prop :=
@@ -85,7 +135,50 @@ abbrev ConfCert (s : State V Owner Block) (B : Block) (r : Round) : Prop := s.Ha
 /-- `TimeoutCert(r)` exists. -/
 abbrev TimeoutCert (s : State V Owner Block) (r : Round) : Prop := s.HasCert (.time r)
 
+omit [DecidableEq Block] in
+theorem Signed_of_HSig {s : State V Owner Block} {v : V} {m : Msg Block} (h : s.HSig v m) :
+    s.Signed v m := Or.inr h
+
+omit [DecidableEq Block] in
+/-- An honest validator's available signature is in the log. -/
+theorem HSig_of_Signed {s : State V Owner Block} {v : V} {m : Msg Block} (hv : v ∈ Q.honest)
+    (h : s.Signed v m) : s.HSig v m := h.resolve_left (not_not.2 hv)
+
+theorem mem_signers {s : State V Owner Block} {v : V} {m : Msg Block} :
+    v ∈ s.signers m ↔ s.Signed v m := by simp [signers]
+
+/-- Certificates persist when a signature is added. -/
+theorem HasCert.sign {s : State V Owner Block} {m : Msg Block} (h : s.HasCert m)
+    (e : Sig V Owner Block) : (s.sign e).HasCert m := by
+  refine Q.quorum_mono ?_ h
+  intro v hv
+  rw [mem_signers] at hv ⊢
+  rcases hv with hv | hv
+  · exact Or.inl hv
+  · exact Or.inr (HSig.sign hv e)
+
+/-- Certificates do not depend on local states. -/
+theorem HasCert_set (s : State V Owner Block) (w : V) (l : Local Block) (m : Msg Block) :
+    (s.set w l).HasCert m ↔ s.HasCert m := Iff.rfl
+
+/-- A certificate has an honest signer in the log. -/
+theorem HasCert.exists_honest_HSig {s : State V Owner Block} {m : Msg Block} (h : s.HasCert m) :
+    ∃ v ∈ Q.honest, s.HSig v m := by
+  obtain ⟨v, hv, hh⟩ := Q.exists_honest_mem h
+  exact ⟨v, hh, HSig_of_Signed hh (mem_signers.1 hv)⟩
+
+/-- Two certificates share an honest signer in the log. -/
+theorem HasCert.exists_honest_HSig_inter {s : State V Owner Block} {m₁ m₂ : Msg Block}
+    (h₁ : s.HasCert m₁) (h₂ : s.HasCert m₂) : ∃ v ∈ Q.honest, s.HSig v m₁ ∧ s.HSig v m₂ := by
+  obtain ⟨v, hv, hh⟩ := Q.exists_honest_mem_inter h₁ h₂
+  rw [Finset.mem_inter, mem_signers, mem_signers] at hv
+  exact ⟨v, hh, HSig_of_Signed hh hv.1, HSig_of_Signed hh hv.2⟩
+
+end Cert
+
 end State
+
+variable [Fintype V] [DecidableEq V] [Q : QuorumSystem V] [DecidableEq Owner] [DecidableEq Block]
 
 /-- The inputs a validator reacts to. A certificate input is accepted only
 if the certificate exists in the current state. -/

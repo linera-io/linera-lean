@@ -14,8 +14,9 @@ single-leader rounds (Single-Leader Rounds).
 
 namespace LeanLinera
 
-/-- Round numbers. -/
-abbrev Round := ℕ
+/-- Round numbers. A notation rather than an `abbrev`, so that `omega`
+sees every round as a natural number. -/
+notation "Round" => ℕ
 
 /-- The three kinds of signed vote. -/
 inductive Msg (Block : Type*)
