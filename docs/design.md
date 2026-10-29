@@ -17,24 +17,25 @@ The formal content of the paper is Appendix A, resting on the five validator
 handlers of §Consensus. The theorems and lemmas, with the Lean name planned
 for each:
 
-| Paper | Statement | Lean | Phase |
+| Paper | Statement | Lean | Status |
 |:---|:---|:---|:---|
-| Lem. honest-mass | a certificate carries ≥ `n−2f` honest weight | `Committee.honest_weight_of_quorum` | 1 |
-| (implicit) quorum intersection | two quorums share an honest validator | `Committee.exists_honest_mem_inter` | 1 |
-| Lem. no-further-votes | a finalized instance signs nothing more | `Validator.finalized_no_vote` | 2 |
-| Lem. vote-monotone | `r_cur` and lock round never decrease; Val/Conf votes are cast at `r_cur` | `Step.round_mono`, `Step.lock_mono`, `Inv.vote_at_cur` | 2 |
-| Lem. unique-valcert | at most one block has a `ValCert` per round | `Safety.valCert_unique` | 2 |
-| Lem. lock-validate | a Val vote against the lock carries `ValCert(B′,ρ)`, `r_ℓ ≤ ρ < r` | `Inv.unlock_cert` | 2 |
-| Thm. safety | no two conflicting `ConfCert`s at a height | `Safety.confCert_unique` | 2 |
-| §Model Safety | no two honest validators finalize different blocks | `Safety.finalized_agree` | 2 |
-| §Model Authenticity | only an eligible owner's proposal receives a Val vote | `Safety.vote_of_eligible` | 2 |
-| Lem. honest-single-leader | infinitely many rounds `r ≥ k` with `L_r` honest | `Schedule.infinitely_many_honest_leader` | 3 |
-| Lem. progress (core) | in a good round, every honest validator accepts the honest proposal; a `ConfCert` follows | `Liveness.Core.good_round_confirms` | 3 |
-| Lem. round-growth | a round without `ConfCert` yields a `TimeoutCert`; all honest validators advance | `Liveness.Timed.round_advances` | 4 |
-| Lem. long-rounds | some round after GST is long enough | `Liveness.Timed.exists_long_round` | 4 |
-| Thm. liveness | an honest active owner + partial synchrony ⇒ a block is finalized | `Liveness.finalizes` | 4 |
-| App. fast-round | safety is preserved when round 0 skips validation | `Safety.confCert_unique` (fast round is part of the core model) | 2 |
-| App. fast-round | an honest super owner finalizes in round 0 without timing | `Liveness.Fast.finalizes` | 3 |
+| Lem. honest-mass | a certificate carries ≥ `n−2f` honest weight | `Weighted.honest_wt_of_quorum` | done |
+| (implicit) quorum intersection | two quorums share an honest validator | `Weighted.exists_honest_mem_inter`, `QuorumSystem.exists_honest_mem_inter` | done |
+| Lem. no-further-votes | a finalized validator refuses every input | `step_none_of_finalized` | done |
+| Lem. vote-monotone | `r_cur` and the lock round never decrease; Val/Conf votes are at `≤ r_cur` | `step_cur_le`, `step_lock_le`, `VInv.val_le_cur`, `VInv.conf_le_cur` | done |
+| Lem. unique-valcert | at most one block has a `ValCert` per round | `valCert_unique` | done |
+| Lem. lock-validate | a Val vote against the lock carries `ValCert(B′,ρ)`, `r_ℓ ≤ ρ < r` | `lock_validate` | done |
+| Thm. safety | no two conflicting `ConfCert`s at a height | `safety` | done |
+| §Model Safety | no two honest validators finalize different blocks | `finalized_agree` | done |
+| §Model Authenticity | an honest Val vote answers an eligible owner's proposal | `vote_of_eligible`, `fast_vote_of_super` | done |
+| App. fast-round | safety is preserved when round 0 skips validation | `safety` (the fast round is in the model) | done |
+| App. fast-round | an honest super owner finalizes in round 0 in one round trip | `fast_round_finalizes` | done |
+| Lem. honest-single-leader | every owner is the sole eligible proposer in a round `≥ k` after any round | `Config.exists_sole_eligible` | done |
+| Lem. progress (core) | in a good round the proposal is validated, then confirmed | `good_round_confirms` | done |
+| Alg. client_propose rule | the highest known certificate re-proposed is acceptable to every lock | `acceptable_of_highest_known`, `wellFormed_of_highest_known`, `acceptable_of_no_lock` | done |
+| Lem. round-growth | a round without `ConfCert` yields a `TimeoutCert`; all honest validators advance | `Liveness.Timed.round_advances` | phase 4 |
+| Lem. long-rounds | some round after GST is long enough | `Liveness.Timed.exists_long_round` | phase 4 |
+| Thm. liveness | an honest active owner + partial synchrony ⇒ a block is finalized | `Liveness.finalizes` | phase 4 |
 
 Out of scope: cross-chain messaging, execution semantics (`Exec`), ownership
 changes between heights (the instance is single-shot, so the owner set is a
@@ -347,14 +348,36 @@ Already visible from reading the appendix against the algorithms:
 
 ## 8. Phases and order of work
 
-| Phase | Content | Size (lines, estimate) |
+| Phase | Content | Status |
 |:---|:---|:---|
-| 0 | scaffold: lake project, Mathlib cache, Makefile, CI, docs skeleton, axioms script | — |
-| 1 | `Committee`, `Messages`, `Validator`, `Protocol`; 4-validator witness execution reaching a `ConfCert` | ~800 |
-| 2 | invariants I1–I6, `valCert_unique`, `confCert_unique`, `finalized_agree`, `vote_of_eligible`; witnesses incl. `byzantine = ∅` | ~1500 |
-| 3 | `Schedule`, `Liveness/Core` | ~800 |
-| 4 | timed layer, round-growth, long-rounds, liveness theorem | ~3000+ |
-| 5 | report.md with statements copied from source; mapping table of §1 filled in | ~300 |
+| 0 | scaffold: lake project, Mathlib cache, Makefile, CI, axioms script | done |
+| 1 | `Committee`, `Messages`, `Validator`, `Protocol`; 4-validator witness executions | done |
+| 2 | invariant, `valCert_unique`, `safety`, `finalized_agree`, `vote_of_eligible`, `lock_validate`, monotonicity | done |
+| 3 | `Schedule`, `Liveness/Runs`, `Liveness/Fast`, `Liveness/Core` | done |
+| 4 | timed layer, round-growth, long-rounds, liveness theorem | open |
+| 5 | report.md with statements copied from source | open |
+
+The invariant as implemented (`Safety/Invariants.lean`, `VInv`) has the six
+clauses of §4 plus: eligibility ghosts on validation and fast votes (for
+Authenticity), and two `knownValCert` clauses (its entries are
+certificates; a two-phase lock is recorded there) that the proposal-rule
+lemma of Phase 3 consumes.
+
+### Phase 4 design points to settle before starting
+
+1. **Owner loop ordering.** Forward `TimeoutCert(r−1)` first, then query
+   `knownValCert`, then propose (F2). The paper's order is query first.
+2. **How the owner learns timeout certificates.** Either only by forming
+   them from timeout votes it collected, or also by adopting any it is
+   shown by a validator. The second bounds the round-entry spread by a
+   constant and lets `T r → ∞` suffice; the first needs `T` to outgrow a
+   linear function of `r` with an unknown slope (F3).
+3. **Timer model.** Discrete time; a validator's deadline for `r` is armed
+   when it enters `r`; honest processing is immediate; after GST every
+   honest-to-honest message is delivered within `Δ`.
+4. **Whether to also time the fast round.** The implementation times it
+   out; the untimed result `fast_round_finalizes` assumes no honest
+   validator has timed out round `0` when the proposal arrives.
 
 Phases 0–2 are the near-term deliverable and back every safety claim of the
 paper. Phase 3 backs the protocol-level content of the liveness argument.
