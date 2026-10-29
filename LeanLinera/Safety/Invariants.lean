@@ -4,13 +4,16 @@ import LeanLinera.Protocol
 # The inductive invariant
 
 `VInv cfg s v` collects, for an honest validator `v`, what its local state
-and its honest signatures satisfy in every reachable state: the vote flags
-reflect the log; votes are cast at or below the current round and at most
-once per round; a confirmation vote outside the fast round is backed by a
+and its honest signatures satisfy in every reachable state: every
+validation vote is bounded by the latest validation vote or the locking
+block, and every confirmation by the locking block (so votes are cast in
+increasing rounds and at most once per round); votes are at or below the
+current round; a confirmation outside the fast round is backed by a
 validation certificate; no validation vote is cast in the fast round; the
-lock is the latest confirmation; and every validation vote carries its
-ghost justification `ValGhost` — the paper's Lemma lock-validate stated at
-the moment of signing. `Inv` is the conjunction over honest validators.
+lock is the latest confirmation; the locking block, when a certificate, is
+one; and every validation vote carries its ghost justification `ValGhost`
+— the paper's Lemma lock-validate stated at the moment of signing. `Inv`
+is the conjunction over honest validators.
 
 This file defines the invariant and proves it at the initial state and
 across steps of *other* validators. `Preservation.lean` proves it across
@@ -24,22 +27,26 @@ variable {V Owner Block : Type*} [Fintype V] [DecidableEq V] [Q : QuorumSystem V
 
 open State
 
-/-- The certificate carried by the proposal a vote answered. -/
-def Sig.cert (e : Sig V Owner Block) : Option (Block × Round) := e.prop.bind (·.cert)
+/-- The justification of the proposal a vote answered. -/
+def Sig.just (e : Sig V Owner Block) : Just Block :=
+  match e.prop with
+  | some P => P.just
+  | none => .none
 
 /-- Ghost justification of an honest validation vote `e` by `v` for `B` in
-round `r`: the carried certificate is for `B`, predates `r` and exists; a
-lock on another block was released by it; the lock recorded at signing was
+round `r`: it answered an eligible proposal; a carried certificate is for
+`B`, predates `r` and exists; a lock on another block was released by a
+certificate from a strictly later round; the lock recorded at signing was
 a confirmation by `v` from before `r`; and every confirmation by `v` from
 before `r` is at or below that lock. -/
 structure ValGhost (cfg : Config Owner Block) (s : State V Owner Block) (v : V)
     (e : Sig V Owner Block) (B : Block) (r : Round) : Prop where
   /-- The vote answered a proposal of `B` in `r` by an eligible owner. -/
   prop_elig : ∃ P, e.prop = some P ∧ P.block = B ∧ P.round = r ∧ cfg.Eligible r P.owner
-  /-- The carried certificate certifies `B`, predates `r`, and exists. -/
-  cert_ok : ∀ c ∈ e.cert, c.1 = B ∧ c.2 < r ∧ s.ValCert c.1 c.2
-  /-- A lock on a different block was released by the carried certificate. -/
-  unlock : ∀ lk ∈ e.lockAt, lk.1 ≠ B → ∃ c ∈ e.cert, lk.2 ≤ c.2
+  /-- A carried certificate certifies `B`, predates `r`, and exists. -/
+  cert_ok : ∀ B' ρ, e.just = .cert B' ρ → B' = B ∧ ρ < r ∧ s.ValCert B' ρ
+  /-- A lock on a different block was released by a strictly later certificate. -/
+  unlock : ∀ lk ∈ e.lockAt, lk.1 ≠ B → ∃ ρ, e.just = .cert B ρ ∧ lk.2 < ρ
   /-- The lock at signing was a confirmation by `v` from an earlier round. -/
   lockAt_conf : ∀ lk ∈ e.lockAt, lk.2 < r ∧ s.HSig v (.conf lk.1 lk.2)
   /-- Every confirmation by `v` from before `r` is at or below the lock at signing. -/
@@ -47,28 +54,29 @@ structure ValGhost (cfg : Config Owner Block) (s : State V Owner Block) (v : V)
 
 /-- The invariant at one honest validator. -/
 structure VInv (cfg : Config Owner Block) (s : State V Owner Block) (v : V) : Prop where
-  /-- `votedVal[r]` records a validation vote in `r`. -/
-  votedVal_iff : ∀ r, (s.locals v).votedVal r = true ↔ ∃ B, s.HSig v (.val B r)
-  /-- `votedConf[r]` records a confirmation vote in `r`. -/
-  votedConf_iff : ∀ r, (s.locals v).votedConf r = true ↔ ∃ B, s.HSig v (.conf B r)
+  /-- Every validation vote is at or below the latest validation vote or the locking block. -/
+  val_bound : ∀ B ρ, s.HSig v (.val B ρ) →
+    (∃ vv ∈ (s.locals v).valVote, ρ ≤ vv.2) ∨ (∃ lb ∈ (s.locals v).lb, ρ ≤ lb.round)
+  /-- Every confirmation vote is at or below the locking block. -/
+  conf_bound : ∀ B ρ, s.HSig v (.conf B ρ) → ∃ lb ∈ (s.locals v).lb, ρ ≤ lb.round
   /-- Validation votes are at or below the current round. -/
-  val_le_cur : ∀ B r, s.HSig v (.val B r) → r ≤ (s.locals v).cur
+  val_le_cur : ∀ B ρ, s.HSig v (.val B ρ) → ρ ≤ (s.locals v).cur
   /-- Confirmation votes are at or below the current round. -/
-  conf_le_cur : ∀ B r, s.HSig v (.conf B r) → r ≤ (s.locals v).cur
+  conf_le_cur : ∀ B ρ, s.HSig v (.conf B ρ) → ρ ≤ (s.locals v).cur
   /-- At most one validation vote per round. -/
-  val_unique : ∀ B₁ B₂ r, s.HSig v (.val B₁ r) → s.HSig v (.val B₂ r) → B₁ = B₂
+  val_unique : ∀ B₁ B₂ ρ, s.HSig v (.val B₁ ρ) → s.HSig v (.val B₂ ρ) → B₁ = B₂
   /-- At most one confirmation vote per round. -/
-  conf_unique : ∀ B₁ B₂ r, s.HSig v (.conf B₁ r) → s.HSig v (.conf B₂ r) → B₁ = B₂
+  conf_unique : ∀ B₁ B₂ ρ, s.HSig v (.conf B₁ ρ) → s.HSig v (.conf B₂ ρ) → B₁ = B₂
   /-- A confirmation vote outside the fast round follows a validation certificate. -/
-  conf_valCert : ∀ B r, s.HSig v (.conf B r) → ¬ cfg.IsFast r → s.ValCert B r
+  conf_valCert : ∀ B ρ, s.HSig v (.conf B ρ) → ¬ cfg.IsFast ρ → s.ValCert B ρ
   /-- No validation vote in the fast round. -/
-  val_not_fast : ∀ B r, s.HSig v (.val B r) → ¬ cfg.IsFast r
+  val_not_fast : ∀ B ρ, s.HSig v (.val B ρ) → ¬ cfg.IsFast ρ
   /-- The lock is a confirmation by `v`. -/
   lock_conf : ∀ lk ∈ (s.locals v).lock, s.HSig v (.conf lk.1 lk.2)
-  /-- The lock is at or below the current round. -/
-  lock_le_cur : ∀ lk ∈ (s.locals v).lock, lk.2 ≤ (s.locals v).cur
   /-- Every confirmation by `v` is at or below the lock. -/
-  conf_le_lock : ∀ B r, s.HSig v (.conf B r) → ∃ lk ∈ (s.locals v).lock, r ≤ lk.2
+  conf_le_lock : ∀ B ρ, s.HSig v (.conf B ρ) → ∃ lk ∈ (s.locals v).lock, ρ ≤ lk.2
+  /-- A locking block that is a certificate exists. -/
+  lb_cert : ∀ B ρ, (s.locals v).lb = some (.cert B ρ) → s.ValCert B ρ
   /-- Every validation vote carries its ghost justification. -/
   val_ghost : ∀ e ∈ s.log, e.signer = v → ∀ B r, e.msg = .val B r → ValGhost cfg s v e B r
   /-- A confirmation vote in the fast round answered a proposal by the super owner. -/
@@ -76,11 +84,6 @@ structure VInv (cfg : Config Owner Block) (s : State V Owner Block) (v : V) : Pr
     ∃ P, e.prop = some P ∧ P.block = B ∧ P.round = r ∧ cfg.FastEligible r P.owner
   /-- A finalized block has a confirmation certificate. -/
   finalized_cert : ∀ B, (s.locals v).finalized = some B → ∃ r, s.ConfCert B r
-  /-- Every entry of `knownValCert` is a validation certificate. -/
-  knownVal_cert : ∀ r B, (s.locals v).knownVal r = some B → s.ValCert B r
-  /-- A lock from a two-phase round is recorded in `knownValCert`. -/
-  lock_known : ∀ lk ∈ (s.locals v).lock, ¬ cfg.IsFast lk.2 →
-    (s.locals v).knownVal lk.2 = some lk.1
 
 /-- The invariant at every honest validator. -/
 def Inv (cfg : Config Owner Block) (s : State V Owner Block) : Prop :=
@@ -95,22 +98,20 @@ omit [Fintype V] [DecidableEq V] Q [DecidableEq Block] in
 
 theorem VInv.init (cfg : Config Owner Block) (v : V) :
     VInv cfg (State.init : State V Owner Block) v where
-  votedVal_iff r := by simp [State.init, Local.init, HSig]
-  votedConf_iff r := by simp [State.init, Local.init, HSig]
-  val_le_cur B r h := absurd h (HSig_init v _)
-  conf_le_cur B r h := absurd h (HSig_init v _)
-  val_unique B₁ B₂ r h := absurd h (HSig_init v _)
-  conf_unique B₁ B₂ r h := absurd h (HSig_init v _)
-  conf_valCert B r h := absurd h (HSig_init v _)
-  val_not_fast B r h := absurd h (HSig_init v _)
+  val_bound B ρ h := absurd h (HSig_init v _)
+  conf_bound B ρ h := absurd h (HSig_init v _)
+  val_le_cur B ρ h := absurd h (HSig_init v _)
+  conf_le_cur B ρ h := absurd h (HSig_init v _)
+  val_unique B₁ B₂ ρ h := absurd h (HSig_init v _)
+  conf_unique B₁ B₂ ρ h := absurd h (HSig_init v _)
+  conf_valCert B ρ h := absurd h (HSig_init v _)
+  val_not_fast B ρ h := absurd h (HSig_init v _)
   lock_conf lk h := by simp [State.init, Local.init] at h
-  lock_le_cur lk h := by simp [State.init, Local.init] at h
-  conf_le_lock B r h := absurd h (HSig_init v _)
+  conf_le_lock B ρ h := absurd h (HSig_init v _)
+  lb_cert B ρ h := by simp [State.init, Local.init] at h
   val_ghost e he := by simp [State.init] at he
   fast_elig e he := by simp [State.init] at he
   finalized_cert B h := by simp [State.init, Local.init] at h
-  knownVal_cert r B h := by simp [State.init, Local.init] at h
-  lock_known lk h := by simp [State.init, Local.init] at h
 
 theorem Inv.init (cfg : Config Owner Block) : Inv cfg (State.init : State V Owner Block) :=
   fun v _ => VInv.init cfg v
@@ -150,7 +151,7 @@ theorem ValGhost.sign {cfg : Config Owner Block} {s : State V Owner Block} {v : 
     {e e' : Sig V Owner Block} {B : Block} {r : Round} (hg : ValGhost cfg s v e B r)
     (h : ∀ B₀ r₀, e'.msg = .conf B₀ r₀ → r ≤ r₀) : ValGhost cfg (s.sign e') v e B r where
   prop_elig := hg.prop_elig
-  cert_ok c hc := let ⟨h₁, h₂, h₃⟩ := hg.cert_ok c hc; ⟨h₁, h₂, h₃.sign e'⟩
+  cert_ok B' ρ hc := let ⟨h₁, h₂, h₃⟩ := hg.cert_ok B' ρ hc; ⟨h₁, h₂, h₃.sign e'⟩
   unlock := hg.unlock
   lockAt_conf lk hlk := let ⟨h₁, h₂⟩ := hg.lockAt_conf lk hlk; ⟨h₁, h₂.sign e'⟩
   conf_le_lockAt B₀ r₀ hc hr := by
@@ -163,7 +164,7 @@ theorem ValGhost.sign_of_ne {cfg : Config Owner Block} {s : State V Owner Block}
     {e e' : Sig V Owner Block} {B : Block} {r : Round} (hg : ValGhost cfg s v e B r)
     (h : e'.signer ≠ v) : ValGhost cfg (s.sign e') v e B r where
   prop_elig := hg.prop_elig
-  cert_ok c hc := let ⟨h₁, h₂, h₃⟩ := hg.cert_ok c hc; ⟨h₁, h₂, h₃.sign e'⟩
+  cert_ok B' ρ hc := let ⟨h₁, h₂, h₃⟩ := hg.cert_ok B' ρ hc; ⟨h₁, h₂, h₃.sign e'⟩
   unlock := hg.unlock
   lockAt_conf lk hlk := let ⟨h₁, h₂⟩ := hg.lockAt_conf lk hlk; ⟨h₁, h₂.sign e'⟩
   conf_le_lockAt B₀ r₀ hc := hg.conf_le_lockAt B₀ r₀ ((HSig_sign_of_ne h _).1 hc)
@@ -181,19 +182,21 @@ theorem ValGhost.set {cfg : Config Owner Block} {s : State V Owner Block} {v : V
 /-- The invariant at `v` persists under a signature by someone else. -/
 theorem VInv.sign_of_ne {cfg : Config Owner Block} {s : State V Owner Block} {v : V}
     (hv : VInv cfg s v) {e : Sig V Owner Block} (h : e.signer ≠ v) : VInv cfg (s.sign e) v where
-  votedVal_iff r := by simp only [locals_sign, HSig_sign_of_ne h]; exact hv.votedVal_iff r
-  votedConf_iff r := by simp only [locals_sign, HSig_sign_of_ne h]; exact hv.votedConf_iff r
-  val_le_cur B r hs := hv.val_le_cur B r ((HSig_sign_of_ne h _).1 hs)
-  conf_le_cur B r hs := hv.conf_le_cur B r ((HSig_sign_of_ne h _).1 hs)
-  val_unique B₁ B₂ r h₁ h₂ :=
-    hv.val_unique B₁ B₂ r ((HSig_sign_of_ne h _).1 h₁) ((HSig_sign_of_ne h _).1 h₂)
-  conf_unique B₁ B₂ r h₁ h₂ :=
-    hv.conf_unique B₁ B₂ r ((HSig_sign_of_ne h _).1 h₁) ((HSig_sign_of_ne h _).1 h₂)
-  conf_valCert B r hs hf := (hv.conf_valCert B r ((HSig_sign_of_ne h _).1 hs) hf).sign e
-  val_not_fast B r hs := hv.val_not_fast B r ((HSig_sign_of_ne h _).1 hs)
+  val_bound B ρ hs := by
+    simp only [locals_sign]; exact hv.val_bound B ρ ((HSig_sign_of_ne h _).1 hs)
+  conf_bound B ρ hs := by
+    simp only [locals_sign]; exact hv.conf_bound B ρ ((HSig_sign_of_ne h _).1 hs)
+  val_le_cur B ρ hs := hv.val_le_cur B ρ ((HSig_sign_of_ne h _).1 hs)
+  conf_le_cur B ρ hs := hv.conf_le_cur B ρ ((HSig_sign_of_ne h _).1 hs)
+  val_unique B₁ B₂ ρ h₁ h₂ :=
+    hv.val_unique B₁ B₂ ρ ((HSig_sign_of_ne h _).1 h₁) ((HSig_sign_of_ne h _).1 h₂)
+  conf_unique B₁ B₂ ρ h₁ h₂ :=
+    hv.conf_unique B₁ B₂ ρ ((HSig_sign_of_ne h _).1 h₁) ((HSig_sign_of_ne h _).1 h₂)
+  conf_valCert B ρ hs hf := (hv.conf_valCert B ρ ((HSig_sign_of_ne h _).1 hs) hf).sign e
+  val_not_fast B ρ hs := hv.val_not_fast B ρ ((HSig_sign_of_ne h _).1 hs)
   lock_conf lk hlk := (hv.lock_conf lk hlk).sign e
-  lock_le_cur := hv.lock_le_cur
-  conf_le_lock B r hs := hv.conf_le_lock B r ((HSig_sign_of_ne h _).1 hs)
+  conf_le_lock B ρ hs := hv.conf_le_lock B ρ ((HSig_sign_of_ne h _).1 hs)
+  lb_cert B ρ hl := (hv.lb_cert B ρ hl).sign e
   val_ghost e' he' hs B r hm := by
     simp only [log_sign, List.mem_append, List.mem_singleton] at he'
     rcases he' with he' | rfl
@@ -205,27 +208,23 @@ theorem VInv.sign_of_ne {cfg : Config Owner Block} {s : State V Owner Block} {v 
     · exact hv.fast_elig e' he' hs B r hm hf
     · exact absurd hs h
   finalized_cert B hf := let ⟨r, hr⟩ := hv.finalized_cert B hf; ⟨r, hr.sign e⟩
-  knownVal_cert r B h := (hv.knownVal_cert r B h).sign e
-  lock_known := hv.lock_known
 
 /-- The invariant at `v` persists under a local update of someone else. -/
 theorem VInv.set_of_ne {cfg : Config Owner Block} {s : State V Owner Block} {v w : V}
     (hv : VInv cfg s v) (h : v ≠ w) (l : Local Block) : VInv cfg (s.set w l) v where
-  votedVal_iff r := by rw [locals_set_of_ne _ _ h]; exact hv.votedVal_iff r
-  votedConf_iff r := by rw [locals_set_of_ne _ _ h]; exact hv.votedConf_iff r
-  val_le_cur B r hs := by rw [locals_set_of_ne _ _ h]; exact hv.val_le_cur B r hs
-  conf_le_cur B r hs := by rw [locals_set_of_ne _ _ h]; exact hv.conf_le_cur B r hs
+  val_bound B ρ hs := by rw [locals_set_of_ne _ _ h]; exact hv.val_bound B ρ hs
+  conf_bound B ρ hs := by rw [locals_set_of_ne _ _ h]; exact hv.conf_bound B ρ hs
+  val_le_cur B ρ hs := by rw [locals_set_of_ne _ _ h]; exact hv.val_le_cur B ρ hs
+  conf_le_cur B ρ hs := by rw [locals_set_of_ne _ _ h]; exact hv.conf_le_cur B ρ hs
   val_unique := hv.val_unique
   conf_unique := hv.conf_unique
   conf_valCert := hv.conf_valCert
   val_not_fast := hv.val_not_fast
   lock_conf lk hlk := by rw [locals_set_of_ne _ _ h] at hlk; exact hv.lock_conf lk hlk
-  lock_le_cur lk hlk := by rw [locals_set_of_ne _ _ h] at hlk ⊢; exact hv.lock_le_cur lk hlk
-  conf_le_lock B r hs := by rw [locals_set_of_ne _ _ h]; exact hv.conf_le_lock B r hs
+  conf_le_lock B ρ hs := by rw [locals_set_of_ne _ _ h]; exact hv.conf_le_lock B ρ hs
+  lb_cert B ρ hl := by rw [locals_set_of_ne _ _ h] at hl; exact hv.lb_cert B ρ hl
   val_ghost e he hs B r hm := (hv.val_ghost e he hs B r hm).set w l
   fast_elig := hv.fast_elig
   finalized_cert B hf := by rw [locals_set_of_ne _ _ h] at hf; exact hv.finalized_cert B hf
-  knownVal_cert r B hk := by rw [locals_set_of_ne _ _ h] at hk; exact hv.knownVal_cert r B hk
-  lock_known lk hlk := by rw [locals_set_of_ne _ _ h] at hlk ⊢; exact hv.lock_known lk hlk
 
 end LeanLinera

@@ -28,7 +28,8 @@ def W : Weighted V where
 
 instance : QuorumSystem V := W.toQuorumSystem
 
-/-- Two multi-leader rounds, then round robin; every block valid; no fast round. -/
+/-- Two multi-leader rounds (`0`, `1`), then single-leader rounds with a
+round-robin leader; every block valid; no fast round. -/
 def slowCfg : Config Owner Block where
   fast := false
   super := 0
@@ -36,7 +37,8 @@ def slowCfg : Config Owner Block where
   leader := fun r => ⟨r % 2, Nat.mod_lt _ (by decide)⟩
   Valid := fun _ => True
 
-/-- As `slowCfg`, with a fast round `0` led by owner `0`. -/
+/-- A fast round `0` led by super owner `0`, then multi-leader rounds `1`
+and `2`, then single-leader rounds. -/
 def fastCfg : Config Owner Block := { slowCfg with fast := true }
 
 /-- Run honest inputs from the initial state and evaluate a decidable

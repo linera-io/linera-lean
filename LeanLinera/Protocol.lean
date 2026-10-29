@@ -195,9 +195,20 @@ inductive Input (Owner Block : Type*)
   | timeoutCert (r : Round)
   deriving DecidableEq
 
+/-- The carried certificate of a justification exists in `s`. -/
+def State.JustCert (s : State V Owner Block) : Just Block → Prop
+  | .none => True
+  | .cert B' ρ => s.ValCert B' ρ
+  | .fast => True
+
+instance (s : State V Owner Block) (j : Just Block) : Decidable (s.JustCert j) := by
+  unfold State.JustCert; split <;> infer_instance
+
 open State in
 /-- One handler invocation at validator `v`; `none` when the input is
-refused or has no effect. -/
+refused or has no effect. A two-phase proposal that passes every check but
+validity or the lock rule still advances the round (Alg. on_proposal,
+line 12, note). -/
 def step (cfg : Config Owner Block) (s : State V Owner Block) (v : V) :
     Input Owner Block → Option (State V Owner Block)
   | .proposal P =>
@@ -207,12 +218,14 @@ def step (cfg : Config Owner Block) (s : State V Owner Block) (v : V) :
         some ((s.set v (l.afterFast P)).sign ⟨v, .conf P.block P.round, l.lock, some P⟩)
       else none
     else
-      if l.proposalOk cfg P ∧ ∀ c ∈ P.cert, s.ValCert c.1 c.2 then
-        some ((s.set v (l.afterProposal P)).sign ⟨v, .val P.block P.round, l.lock, some P⟩)
+      if l.preOk cfg P ∧ s.JustCert P.just then
+        if l.lockOk cfg P ∧ cfg.Valid P.block then
+          some ((s.set v (l.afterVal P)).sign ⟨v, .val P.block P.round, l.lock, some P⟩)
+        else some (s.set v (l.afterBump P))
       else none
   | .valCert B r =>
     let l := s.locals v
-    if s.ValCert B r ∧ l.valCertOk r then
+    if s.ValCert B r ∧ l.valCertOk B r then
       let s₁ := s.set v (l.afterValCert B r)
       some (if l.confVotes r then s₁.sign ⟨v, .conf B r, l.lock, none⟩ else s₁)
     else none
@@ -226,7 +239,7 @@ def step (cfg : Config Owner Block) (s : State V Owner Block) (v : V) :
     else none
   | .timeoutCert r =>
     let l := s.locals v
-    if s.TimeoutCert r ∧ l.finalized = none then some (s.set v (l.afterTimeoutCert r)) else none
+    if s.TimeoutCert r ∧ l.tcOk r then some (s.set v (l.afterTimeoutCert r)) else none
 
 /-- A step of an honest validator. -/
 def Step (cfg : Config Owner Block) (s s' : State V Owner Block) : Prop :=

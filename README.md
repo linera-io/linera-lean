@@ -1,10 +1,13 @@
 # lean-linera
 
 A Lean 4 + Mathlib formalization of the per-height consensus protocol of the
-Linera paper: the validator handlers, machine-checked safety over an untimed
-model, and liveness under an honest leader (fast rounds) and partial
-synchrony (slow rounds). See `docs/design.md` for the plan and the mapping
-from the paper's lemmas to Lean theorems.
+Linera paper, as implemented in `linera-protocol`: the validator handlers
+(fast round, skippable multi-leader rounds, single-leader rounds, locking
+blocks, the strict lock rule), machine-checked safety over an untimed
+model, and liveness under an honest leader (fast rounds) and in a good
+two-phase round. See `docs/design.md` for the plan, the mapping from the
+paper's lemmas to Lean theorems, and the comparison with the
+implementation.
 
 Build: `lake exe cache get && lake build` (or `make check`); `make axioms`
 checks that every theorem uses only `propext`, `Classical.choice` and

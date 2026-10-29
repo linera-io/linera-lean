@@ -7,6 +7,6 @@ import LeanLinera.Safety.Preservation
 import LeanLinera.Safety.Safety
 import LeanLinera.Schedule
 import LeanLinera.Liveness.Runs
+import LeanLinera.Safety.Monotone
 import LeanLinera.Liveness.Fast
 import LeanLinera.Liveness.Core
-import LeanLinera.Safety.Monotone

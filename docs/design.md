@@ -22,17 +22,18 @@ for each:
 | Lem. honest-mass | a certificate carries ≥ `n−2f` honest weight | `Weighted.honest_wt_of_quorum` | done |
 | (implicit) quorum intersection | two quorums share an honest validator | `Weighted.exists_honest_mem_inter`, `QuorumSystem.exists_honest_mem_inter` | done |
 | Lem. no-further-votes | a finalized validator refuses every input | `step_none_of_finalized` | done |
-| Lem. vote-monotone | `r_cur` and the lock round never decrease; Val/Conf votes are at `≤ r_cur` | `step_cur_le`, `step_lock_le`, `VInv.val_le_cur`, `VInv.conf_le_cur` | done |
-| Lem. unique-valcert | at most one block has a `ValCert` per round | `valCert_unique` | done |
-| Lem. lock-validate | a Val vote against the lock carries `ValCert(B′,ρ)`, `r_ℓ ≤ ρ < r` | `lock_validate` | done |
+| Lem. vote-monotone | `r_cur` and the lock round never decrease; votes in increasing rounds | `step_cur_le`, `step_lock_le`, `VInv.val_bound`, `VInv.conf_bound` | done |
+| Lem. unique-valcert | at most one block has a `ValCert` per round; none in the fast round | `valCert_unique`, `not_valCert_fast` | done |
+| Lem. conf-needs-val | a `ConfCert` outside the fast round rests on a `ValCert` | `Inv.valCert_of_confCert` | done |
+| Lem. lock-validate | a Val vote against the lock carries `ValCert(B′,ρ)`, `r_ℓ < ρ < r` | `lock_validate` | done |
 | Thm. safety | no two conflicting `ConfCert`s at a height | `safety` | done |
 | §Model Safety | no two honest validators finalize different blocks | `finalized_agree` | done |
 | §Model Authenticity | an honest Val vote answers an eligible owner's proposal | `vote_of_eligible`, `fast_vote_of_super` | done |
 | App. fast-round | safety is preserved when round 0 skips validation | `safety` (the fast round is in the model) | done |
 | App. fast-round | an honest super owner finalizes in round 0 in one round trip | `fast_round_finalizes` | done |
-| Lem. honest-single-leader | every owner is the sole eligible proposer in a round `≥ k` after any round | `Config.exists_sole_eligible` | done |
+| Lem. honest-single-leader | every owner is the sole eligible proposer in a single-leader round after any round (round-robin, no super owner) | `Config.exists_sole_eligible` | done |
 | Lem. progress (core) | in a good round the proposal is validated, then confirmed | `good_round_confirms` | done |
-| Alg. client_propose rule | the highest known certificate re-proposed is acceptable to every lock | `acceptable_of_highest_known`, `wellFormed_of_highest_known`, `acceptable_of_no_lock` | done |
+| Alg. client_propose rule | the newest locking block re-proposed passes every lock | `acceptable_of_highest_lb`, `acceptable_of_fast_lb`, `acceptable_of_no_lock`, `wellFormed_of_highest_lb` | done |
 | Lem. round-growth | a round without `ConfCert` yields a `TimeoutCert`; all honest validators advance | `Liveness.Timed.round_advances` | phase 4 |
 | Lem. long-rounds | some round after GST is long enough | `Liveness.Timed.exists_long_round` | phase 4 |
 | Thm. liveness | an honest active owner + partial synchrony ⇒ a block is finalized | `Liveness.finalizes` | phase 4 |
@@ -135,6 +136,23 @@ having seen the certificate.
 
 ### 3.3 Validator local state and handlers (`Validator.lean`)
 
+*(Amended 2026-10-29 to follow the implementation; the paper's algorithms
+were amended in the same way. The text below describes the amended
+model.)* The local state is `cur`, `valVote` (latest validation vote),
+`lock` (latest confirmation), `lb` (the locking block: the highest
+validation certificate seen or the fast-round proposal), `timeoutVote`,
+`tc` and `finalized`. A proposal carries a justification `Just`: none, a
+certificate, or the fast-round signature. Handlers: `preOk` (eligibility,
+well-formed justification, the round rule — rounds up to `r_SL` may be
+skipped, later ones must be current — and newer than `valVote` and `lb`),
+`lockOk` (the strict lock rule), `afterVal`/`afterBump` (a proposal that
+passes `preOk` but fails validity or the lock rule still advances the
+round), `fastOk`/`afterFast`, `valCertOk`/`afterValCert` (record the
+locking block, advance, confirm only if the round is current),
+`timeoutOk` (current round only), `tcOk`/`afterTimeoutCert`. The original
+description follows.
+
+
 Transcribed from the five algorithms, as pure functions
 `Local → Input → Option (Local × List Msg)` so that each guard is a line of
 the paper:
@@ -194,6 +212,17 @@ decidable `Valid`, every precondition is decidable, so a concrete execution
 is checked by `decide` (the witness discipline of `lean-dag`).
 
 ## 4. Safety: proof architecture (`Safety/`)
+
+*(Amended 2026-10-29.)* The invariant as implemented replaces the
+per-round flags by bounds: every validation vote is at or below
+`valVote` or `lb.round` (`val_bound`), every confirmation at or below
+`lb.round` (`conf_bound`); the lock is the latest confirmation
+(`lock_conf`, `conf_le_lock`); `lb_cert`; and the ghost `ValGhost` now
+records a strict unlock (`lk.2 < ρ`). The safety proof no longer needs the
+`ρ = r` case: the carried certificate's round lies strictly between the
+confirmation round and the vote's round, contradicting minimality
+directly. The original design follows.
+
 
 Inductive invariants over `Reachable` states, for honest `v`:
 
@@ -347,6 +376,17 @@ Already visible from reading the appendix against the algorithms:
   hypothesis that no honest lock comes from a fast round.
 
 ## 7b. Paper versus implementation (`~/git/linera-protocol`, read 2026-10-29)
+
+**Resolution (2026-10-29).** The paper's protocol description and proofs and
+the Lean model now follow the implementation on I7–I13 (round-advancing
+proposals, strict lock rule on the latest confirmation, locking block
+served to clients and bounding proposals, timeout votes for the current
+round only, client order and adoption). I1 is reflected as integer rounds
+with an optional fast round, `k` multi-leader rounds and single-leader
+rounds from `r_SL`; I5 is stated in the paper, not yet in Lean (timed
+layer); I2 (validator fallback rounds), I3 (pseudo-random schedule, kept
+abstract as `leader`), I4 (open rounds) and I6 (attestations) are
+described in the paper or left out, not modelled.
 
 Read against `linera-chain/src/manager.rs` (`ChainManager`),
 `linera-core/src/client/chain_client/mod.rs` (proposal loop) and
