@@ -363,17 +363,19 @@ Already visible from reading the appendix against the algorithms:
   which is all the liveness proof uses.
 - **F5.** Liveness needs the honest owner to be *active* (§Model says so;
   Thm. liveness omits it).
-- **F7. Fixed grace period.** The implementation waits for a quorum of
-  responses plus a fixed `quorum_grace_period` when reading locking
-  blocks. Under partial synchrony with unknown `Δ`, an adversary that
-  delivers Byzantine responses first and one honest validator's response
-  after the grace period can hide that validator's higher locking block
-  in every round, and its lock then refuses every re-proposal; with the
-  Byzantine validators abstaining, no validation quorum forms. The paper's
-  original "grace period that grows with `r`" (restored in the amended
-  Alg. client_propose only as "a grace period") avoids this; the timed
-  model assumes it through the obligation `propose` (the owner's proposal
-  is built from locking blocks that include every honest validator's).
+- **F7. Reading every honest locking block (modelling note, not a bug).**
+  The timed model's obligation `propose` assumes the owner's proposal is
+  built from locking blocks that include every honest validator's. The
+  implementation collects responses until a quorum is reached and then for
+  an extra fraction of the elapsed time (`quorum_grace_period`, in
+  `communicate_with_quorum`), so it reads every honest locking block
+  whenever the slowest honest response is not much slower than the fastest
+  quorum. Against a worst-case adversary with unknown `Δ`, one honest
+  response could be delayed past that window in every round and its lock
+  then refuses every re-proposal. Production runs with fixed network
+  timeouts, which is the accepted stance; the obligation records the
+  assumption rather than a defect. (Corrected 2026-10-29: an earlier
+  version of this note mistook the fraction for a fixed duration.)
 - **F6. Fast-round locks are invisible to the client's query.** A
   confirmation vote in a fast round locks the validator on `(B₀, 0)` with
   no validation certificate, so `knownValCert` never records it. After a
@@ -535,7 +537,7 @@ Not covered by the timed theorem: the fast round (`no_fast`), the
 validator fallback rounds, open multi-leader rounds. The obligations
 `propose` and `cert` abstract the owner's loop into the constant `L`; a
 model of the owner as a state machine with polling and the grace period
-would discharge them, and is where F7 below would surface.
+would discharge them, under the assumption recorded as F7 below.
 
 ### Phase 4 design points settled by the implementation
 
