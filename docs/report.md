@@ -131,9 +131,9 @@ certificate for `B'` from a round strictly between the lock and the vote:
 
 ```lean
 theorem lock_validate {e : Sig V Owner Block} (he : e ∈ s.log) (hv : e.signer ∈ Q.honest)
-    {B' : Block} {r : Round} (hm : e.msg = .val B' r) {B : Block} {rℓ : Round}
-    (hlk : e.lockAt = some (B, rℓ)) (hne : B ≠ B') :
-    ∃ ρ, e.just = .cert B' ρ ∧ rℓ < ρ ∧ ρ < r ∧ s.ValCert B' ρ
+    {B' : Block} {r : Round} (hm : e.msg = .val B' r) {B : Block} {rl : Round}
+    (hlk : e.lockAt = some (B, rl)) (hne : B ≠ B') :
+    ∃ ρ, e.just = .cert B' ρ ∧ rl < ρ ∧ ρ < r ∧ s.ValCert B' ρ
 ```
 
 **The locked block is protected**, the paper's minimal-round argument:

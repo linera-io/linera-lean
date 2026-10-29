@@ -136,11 +136,11 @@ theorem fast_vote_of_super {e : Sig V Owner Block} (he : e ∈ s.log) (hv : e.si
 validation vote for `B'` in `r` cast while locked on `(B, r_ℓ)` with
 `B ≠ B'` carried `ValCert(B', ρ)` with `r_ℓ < ρ < r`. -/
 theorem lock_validate {e : Sig V Owner Block} (he : e ∈ s.log) (hv : e.signer ∈ Q.honest)
-    {B' : Block} {r : Round} (hm : e.msg = .val B' r) {B : Block} {rℓ : Round}
-    (hlk : e.lockAt = some (B, rℓ)) (hne : B ≠ B') :
-    ∃ ρ, e.just = .cert B' ρ ∧ rℓ < ρ ∧ ρ < r ∧ s.ValCert B' ρ := by
+    {B' : Block} {r : Round} (hm : e.msg = .val B' r) {B : Block} {rl : Round}
+    (hlk : e.lockAt = some (B, rl)) (hne : B ≠ B') :
+    ∃ ρ, e.just = .cert B' ρ ∧ rl < ρ ∧ ρ < r ∧ s.ValCert B' ρ := by
   have hg := ((Inv.reachable hr) e.signer hv).val_ghost e he rfl B' r hm
-  obtain ⟨ρ, hj, hlt⟩ := hg.unlock (B, rℓ) (by rw [hlk]; rfl) hne
+  obtain ⟨ρ, hj, hlt⟩ := hg.unlock (B, rl) (by rw [hlk]; rfl) hne
   obtain ⟨_, hρlt, hcval⟩ := hg.cert_ok B' ρ hj
   exact ⟨ρ, hj, hlt, hρlt, hcval⟩
 
