@@ -27,7 +27,7 @@ report:
 pdf: report
 	mkdir -p docs/pdf
 	pandoc docs/report.md -o docs/pdf/report.pdf --pdf-engine=xelatex --toc \
-	  --syntax-definition=docs/pdf/lean.xml --highlight-style=tango \
+	  --syntax-definition=docs/pdf/lean.xml --syntax-highlighting=tango \
 	  -V mainfont="Times New Roman" -V monofont="Menlo" -V geometry:margin=2.5cm
 
 help:
