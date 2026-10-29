@@ -401,7 +401,10 @@ Already visible from reading the appendix against the algorithms:
 ## 7b. Paper versus implementation (`~/git/linera-protocol`, read 2026-10-29)
 
 **Resolution (2026-10-29).** The paper's protocol description and proofs and
-the Lean model now follow the implementation on I7–I13 (round-advancing
+the Lean model now follow the implementation on I7–I13. (Later the same
+day the paper's body was restricted to the two-phase protocol again, with
+the fast round stated precisely as an appendix extension, commit 4619c14
+of linera-paper; the Lean model keeps covering both.) (round-advancing
 proposals, strict lock rule on the latest confirmation, locking block
 served to clients and bounding proposals, timeout votes for the current
 round only, client order and adoption). I1 is reflected as integer rounds
