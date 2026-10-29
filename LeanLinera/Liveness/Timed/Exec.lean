@@ -294,6 +294,147 @@ theorem le_round_or_tc (hr : cfg.IsSingle r) (t : ℕ) :
         · exact absurd hok.1 htc
     · exact Or.inr ⟨t', ht'.trans (Nat.lt_succ_self t), htc⟩
 
+/-- A step never lowers a validator's recorded timeout certificate. -/
+theorem step_tc_le {s s' : State V Owner Block} {v : V} {i : Input Owner Block}
+    (h : step cfg s v i = some s') (w : V) :
+    ∀ τ ∈ (s.locals w).tc, ∃ τ' ∈ (s'.locals w).tc, τ ≤ τ' := by
+  by_cases hwv : w = v
+  swap
+  · rw [step_locals_of_ne h hwv]; exact fun τ hτ => ⟨τ, hτ, le_rfl⟩
+  subst hwv
+  cases i with
+  | proposal P =>
+    rw [LeanLinera.step] at h
+    split_ifs at h <;> simp only [Option.some.injEq] at h <;> subst h <;>
+      simp only [locals_sign, locals_set_self, Local.afterFast, Local.afterVal,
+        Local.afterBump] <;>
+      exact fun τ hτ => ⟨τ, hτ, le_rfl⟩
+  | valCert B r =>
+    rw [LeanLinera.step] at h
+    have htc : (((s.locals w).afterValCert B r)).tc = (s.locals w).tc := by
+      simp only [Local.afterValCert]; split_ifs <;> rfl
+    split_ifs at h <;> simp only [Option.some.injEq] at h <;> subst h <;>
+      simp only [locals_sign, locals_set_self, htc] <;> exact fun τ hτ => ⟨τ, hτ, le_rfl⟩
+  | confCert B r =>
+    rw [LeanLinera.step] at h
+    split_ifs at h; simp only [Option.some.injEq] at h; subst h
+    simp only [locals_set_self, Local.afterConfCert]; exact fun τ hτ => ⟨τ, hτ, le_rfl⟩
+  | timeout r =>
+    rw [LeanLinera.step] at h
+    split_ifs at h; simp only [Option.some.injEq] at h; subst h
+    simp only [locals_sign, locals_set_self, Local.afterTimeout]; exact fun τ hτ => ⟨τ, hτ, le_rfl⟩
+  | timeoutCert r =>
+    rw [LeanLinera.step] at h
+    split_ifs at h with hok; simp only [Option.some.injEq] at h; subst h
+    simp only [locals_set_self, Local.afterTimeoutCert]
+    intro τ hτ
+    exact ⟨r, rfl, (hok.2.2 τ hτ).le⟩
+
+/-- Either every honest validator is at or below the single-leader round
+`r` at tick `t`, or some honest validator has recorded a timeout
+certificate for a round at least `r`: the only way past such a round is
+processing one. -/
+theorem le_round_or_tc_field (hr : cfg.IsSingle r) (t : ℕ) :
+    (∀ w ∈ Q.honest, ex.cur w t ≤ r) ∨
+      ∃ w ∈ Q.honest, ∃ τ ∈ ((ex.st t).locals w).tc, r ≤ τ := by
+  induction t with
+  | zero =>
+    left; intro w _
+    unfold cur; rw [ex.zero]; simp [State.init, Local.init]
+  | succ t ih =>
+    rcases ih with ih | ⟨w, hw, τ, hτ, hrτ⟩
+    swap
+    · right
+      refine ⟨w, hw, ?_⟩
+      rw [ex.succ]
+      rcases hact : ex.act t with _ | ⟨v, i⟩
+      · exact ⟨τ, hτ, hrτ⟩
+      simp only [stepOpt]
+      rcases hst : step cfg (ex.st t) v i with _ | s'
+      · exact ⟨τ, hτ, hrτ⟩
+      simp only [Option.getD_some]
+      obtain ⟨τ', hτ', hle⟩ := step_tc_le hst w τ hτ
+      exact ⟨τ', hτ', hrτ.trans hle⟩
+    · by_cases hpast : ∃ w ∈ Q.honest, ∃ τ ∈ ((ex.st (t + 1)).locals w).tc, r ≤ τ
+      · exact Or.inr hpast
+      left
+      push Not at hpast
+      intro w hw
+      unfold cur
+      rw [ex.succ]
+      rcases hact : ex.act t with _ | ⟨v, i⟩
+      · exact ih w hw
+      simp only [stepOpt]
+      rcases hst : step cfg (ex.st t) v i with _ | s'
+      · exact ih w hw
+      simp only [Option.getD_some]
+      by_cases hwv : w = v
+      swap
+      · rw [step_locals_of_ne hst hwv]; exact ih w hw
+      subst hwv
+      have hinv := ex.inv t
+      cases i with
+      | proposal P =>
+        rw [LeanLinera.step] at hst
+        split_ifs at hst with hf hok hpre hacc <;> simp only [Option.some.injEq] at hst <;>
+          subst hst
+        · simp only [locals_sign, locals_set_self, Local.afterFast]
+          have := hf.2
+          exact (max_le (ih w hw) (by omega))
+        · simp only [locals_sign, locals_set_self, Local.afterVal]
+          refine max_le (ih w hw) ?_
+          have hro := hpre.1.2.2.2.1
+          unfold Local.roundOk at hro
+          split_ifs at hro with hle
+          · exact hle.trans hr
+          · exact hro ▸ ih w hw
+        · simp only [locals_set_self, Local.afterBump]
+          refine max_le (ih w hw) ?_
+          have hro := hpre.1.2.2.2.1
+          unfold Local.roundOk at hro
+          split_ifs at hro with hle
+          · exact hle.trans hr
+          · exact hro ▸ ih w hw
+      | valCert B ρ =>
+        rw [LeanLinera.step] at hst
+        have hcur : (((ex.st t).locals w).afterValCert B ρ).cur =
+            max ((ex.st t).locals w).cur ρ := by
+          simp only [Local.afterValCert]; split_ifs <;> rfl
+        split_ifs at hst with hok hcv <;> simp only [Option.some.injEq] at hst <;> subst hst <;>
+          obtain ⟨u, hu, hsig⟩ := hok.1.exists_honest_HSig <;>
+          have hρ : ρ ≤ ex.cur u t := (hinv u hu).val_le_cur B ρ hsig
+        · simp only [locals_sign, locals_set_self, hcur]
+          exact max_le (ih w hw) (hρ.trans (ih u hu))
+        · simp only [locals_set_self, hcur]
+          exact max_le (ih w hw) (hρ.trans (ih u hu))
+      | confCert B ρ =>
+        rw [LeanLinera.step] at hst
+        split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst
+        simp only [locals_set_self, Local.afterConfCert]
+        exact ih w hw
+      | timeout ρ =>
+        rw [LeanLinera.step] at hst
+        split_ifs at hst; simp only [Option.some.injEq] at hst; subst hst
+        simp only [locals_sign, locals_set_self, Local.afterTimeout]
+        exact ih w hw
+      | timeoutCert ρ =>
+        rw [LeanLinera.step] at hst
+        split_ifs at hst with hok; simp only [Option.some.injEq] at hst; subst hst
+        simp only [locals_set_self, Local.afterTimeoutCert]
+        refine max_le (ih w hw) ?_
+        obtain ⟨u, hu, hsig⟩ := hok.1.exists_honest_HSig
+        have hρ : ρ ≤ ex.cur u t := (hinv u hu).time_le_cur ρ hsig
+        have hρr : ρ ≤ r := hρ.trans (ih u hu)
+        rcases Nat.lt_or_eq_of_le hρr with hlt | rfl
+        · omega
+        · exfalso
+          have hmem : ρ ∈ ((ex.st (t + 1)).locals w).tc := by
+            rw [ex.succ, hact]
+            simp only [stepOpt]
+            rw [LeanLinera.step, ite_eq_left hok]
+            simp [Local.afterTimeoutCert]
+          exact lt_irrefl _ (hpast w hw ρ hmem)
+
 /-- A validator past a single-leader round `r` got there through a timeout
 certificate for `r` that existed strictly earlier. -/
 theorem exists_tc_of_gt (hr : cfg.IsSingle r) {w : V} (hw : w ∈ Q.honest) {t : ℕ}

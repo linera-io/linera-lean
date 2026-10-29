@@ -337,9 +337,14 @@ structure Env where
   timeout : ∀ t, GST ≤ t → ∀ v ∈ Q.honest, ∀ d, tm.dur cfg (ex.cur v t) = some d →
     ex.entry v t + d ≤ t → ∃ t', t ≤ t' ∧ t' ≤ t + Δ ∧
       ((ex.st t').HSig v (.time (ex.cur v t)) ∨ ex.cur v t < ex.cur v t' ∨ ex.Done t')
-  /-- A timeout certificate reaches every honest validator within `Δ`. -/
-  tc : ∀ t, GST ≤ t → ∀ r, (ex.st t).TimeoutCert r → ∀ v ∈ Q.honest,
-    ∃ t', t ≤ t' ∧ t' ≤ t + Δ ∧ (r < ex.cur v t' ∨ ex.Done t')
+  /-- A timeout certificate recorded by an honest validator reaches every honest
+  validator within `Δ` (the owner adopts and forwards it). -/
+  tc_known : ∀ t, GST ≤ t → ∀ v ∈ Q.honest, ∀ τ ∈ ((ex.st t).locals v).tc, ∀ w ∈ Q.honest,
+    ∃ t', t ≤ t' ∧ t' ≤ t + Δ ∧ (τ < ex.cur w t' ∨ ex.Done t')
+  /-- Timeout votes from every honest validator form a certificate that reaches every
+  honest validator within `Δ` (the owner assembles and forwards it). -/
+  tc_honest : ∀ t, GST ≤ t → ∀ τ, (∀ v ∈ Q.honest, (ex.st t).HSig v (.time τ)) →
+    ∀ w ∈ Q.honest, ∃ t', t ≤ t' ∧ t' ≤ t + Δ ∧ (τ < ex.cur w t' ∨ ex.Done t')
   /-- The owner's proposal in a round it leads solely reaches everyone within `L`. -/
   propose : ∀ t, GST ≤ t → ∀ r, cfg.IsSingle r → (∀ o', cfg.Eligible r o' ↔ o' = o) →
     (∀ v ∈ Q.honest, ex.cur v t = r) → ¬ ex.Done t →

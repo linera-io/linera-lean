@@ -38,19 +38,46 @@ variable {cfg : Config Owner Block} {tm : Timeouts} {ex : TExec (V := V) cfg tm}
 
 /-! ## Round growth -/
 
-/-- After a timeout certificate for `r`, every honest validator passes `r`
-within `Δ`, or a block is confirmed. -/
-theorem Env.all_gt_of_tc {t r : ℕ} (hg : env.GST ≤ t) (htc : (ex.st t).TimeoutCert r) :
-    ∃ t', t ≤ t' ∧ (ex.Done t' ∨ ∀ v ∈ Q.honest, r < ex.cur v t') := by
+/-- After a timeout certificate recorded by an honest validator, every
+honest validator passes its round within `Δ`, or a block is confirmed. -/
+theorem Env.all_gt_of_known {t : ℕ} (hg : env.GST ≤ t) {v : V} (hv : v ∈ Q.honest) {τ : ℕ}
+    (hτ : τ ∈ ((ex.st t).locals v).tc) :
+    ∃ t', t ≤ t' ∧ (ex.Done t' ∨ ∀ w ∈ Q.honest, τ < ex.cur w t') := by
   refine ⟨t + env.Δ, Nat.le_add_right _ _, ?_⟩
   by_cases hd : ex.Done (t + env.Δ)
   · exact Or.inl hd
   · right
-    intro v hv
-    obtain ⟨t', _, ht', h⟩ := env.tc t hg r htc v hv
+    intro w hw
+    obtain ⟨t', _, ht', h⟩ := env.tc_known t hg v hv τ hτ w hw
     rcases h with h | h
-    · exact h.trans_le (ex.cur_mono v ht')
+    · exact h.trans_le (ex.cur_mono w ht')
     · exact absurd (Done.mono ex ht' h) hd
+
+/-- After every honest validator signed a timeout vote for `τ`, every
+honest validator passes `τ` within `Δ`, or a block is confirmed. -/
+theorem Env.all_gt_of_signed {t τ : ℕ} (hg : env.GST ≤ t)
+    (hsig : ∀ v ∈ Q.honest, (ex.st t).HSig v (.time τ)) :
+    ∃ t', t ≤ t' ∧ (ex.Done t' ∨ ∀ w ∈ Q.honest, τ < ex.cur w t') := by
+  refine ⟨t + env.Δ, Nat.le_add_right _ _, ?_⟩
+  by_cases hd : ex.Done (t + env.Δ)
+  · exact Or.inl hd
+  · right
+    intro w hw
+    obtain ⟨t', _, ht', h⟩ := env.tc_honest t hg τ hsig w hw
+    rcases h with h | h
+    · exact h.trans_le (ex.cur_mono w ht')
+    · exact absurd (Done.mono ex ht' h) hd
+
+/-- Some honest validator past the single-leader round `r` means some
+honest validator recorded a timeout certificate for at least `r`, after
+which everyone passes `r` within `Δ`, or a block is confirmed. -/
+theorem Env.all_gt_of_past {r t : ℕ} (hr : cfg.IsSingle r) (hg : env.GST ≤ t) {w : V}
+    (hw : w ∈ Q.honest) (hlt : r < ex.cur w t) :
+    ∃ t', t ≤ t' ∧ (ex.Done t' ∨ ∀ v ∈ Q.honest, r < ex.cur v t') := by
+  rcases ex.le_round_or_tc_field hr t with h | ⟨w', hw', τ, hτ, hrτ⟩
+  · exact absurd (h w hw) (not_le.2 hlt)
+  · obtain ⟨t', ht', h⟩ := env.all_gt_of_known hg hw' hτ
+    exact ⟨t', ht', h.imp id (fun h v hv => hrτ.trans_lt (h v hv))⟩
 
 /-- A single-leader round is passed by every honest validator, or a block
 is confirmed (paper, Lemma round-growth). -/
@@ -59,8 +86,7 @@ theorem Env.advance_single {r t : ℕ} (hr : cfg.IsSingle r) (hg : env.GST ≤ t
     ∃ t', t ≤ t' ∧ (ex.Done t' ∨ ∀ v ∈ Q.honest, r < ex.cur v t') := by
   by_cases hex : ∃ w ∈ Q.honest, r < ex.cur w t
   · obtain ⟨w, hw, hlt⟩ := hex
-    obtain ⟨t₀, ht₀, htc⟩ := ex.exists_tc_of_gt hr hw hlt
-    exact env.all_gt_of_tc hg (ex.HasCert_mono ht₀.le htc)
+    exact env.all_gt_of_past hr hg hw hlt
   push Not at hex
   have heq : ∀ v ∈ Q.honest, ex.cur v t = r := fun v hv => le_antisymm (hex v hv) (hall v hv)
   obtain ⟨d, hd⟩ : ∃ d, tm.dur cfg r = some d := ⟨_, dur_single hr⟩
@@ -84,9 +110,7 @@ theorem Env.advance_single {r t : ℕ} (hr : cfg.IsSingle r) (hg : env.GST ≤ t
   · exact ⟨_, by omega, Or.inl hdone⟩
   by_cases hex' : ∃ w ∈ Q.honest, r < ex.cur w (t + d + env.Δ)
   · obtain ⟨w, hw, hlt⟩ := hex'
-    obtain ⟨t₀, ht₀, htc⟩ := ex.exists_tc_of_gt hr hw hlt
-    obtain ⟨t', ht', h⟩ := env.all_gt_of_tc (t := t + d + env.Δ) (by omega)
-      (ex.HasCert_mono ht₀.le htc)
+    obtain ⟨t', ht', h⟩ := env.all_gt_of_past hr (t := t + d + env.Δ) (by omega) hw hlt
     exact ⟨t', by omega, h⟩
   push Not at hex'
   have hsig : ∀ v ∈ Q.honest, (ex.st (t + d + env.Δ)).HSig v (.time r) := by
@@ -95,8 +119,7 @@ theorem Env.advance_single {r t : ℕ} (hr : cfg.IsSingle r) (hg : env.GST ≤ t
     · exact h
     · exact absurd h (not_lt.2 (hex' v hv))
     · exact absurd h hdone
-  obtain ⟨t', ht', h⟩ := env.all_gt_of_tc (t := t + d + env.Δ) (by omega)
-    (HasCert_of_honest hsig)
+  obtain ⟨t', ht', h⟩ := env.all_gt_of_signed (t := t + d + env.Δ) (by omega) hsig
   exact ⟨t', by omega, h⟩
 
 /-- A multi-leader round is passed by every honest validator of a list, or
@@ -287,12 +310,12 @@ theorem Env.liveness : ∃ t, ex.Done t := by
     fun v hv => Finset.le_sup (f := fun v => ex.cur v env.GST) hv
   set R := Q.honest.sup (fun v => ex.cur v env.GST) with hR
   -- the good round: led solely by the owner, beyond every round held at GST, and long
-  obtain ⟨r, hrN, hrs, hsole⟩ := env.leader (max (R + 2) (cfg.firstSL + env.Δ + 2 * env.L + 2))
+  obtain ⟨r, hrN, hrs, hsole⟩ := env.leader (max (R + 2) (cfg.firstSL + env.Δ + 2 * env.L + 3))
   have hR2 : R + 2 ≤ r := (le_max_left _ _).trans hrN
-  have hrSL : cfg.firstSL + env.Δ + 2 * env.L + 2 ≤ r := (le_max_right _ _).trans hrN
+  have hrSL : cfg.firstSL + env.Δ + 2 * env.L + 3 ≤ r := (le_max_right _ _).trans hrN
   have hr1 : cfg.firstSL < r := by omega
   obtain ⟨d, hd⟩ : ∃ d, tm.dur cfg r = some d := ⟨_, dur_single hrs⟩
-  have hdbig : env.Δ + 2 * env.L + 2 ≤ d := by
+  have hdbig : env.Δ + 2 * env.L + 3 ≤ d := by
     rw [dur_single hrs] at hd
     simp only [Option.some.injEq] at hd
     have h2 : r - cfg.firstSL ≤ (r - cfg.firstSL) * tm.inc :=
@@ -304,29 +327,22 @@ theorem Env.liveness : ∃ t, ex.Done t := by
   obtain ⟨t, _, ht⟩ := env.reach_round r
   rcases ht with ht | ht
   · exact ⟨t, ht⟩
-  -- the first timeout certificate for `r - 1`
-  have hex : ∃ t', (ex.st t').TimeoutCert (r - 1) := by
-    obtain ⟨t', _, h⟩ := ex.exists_tc_of_gt hrs' hw₀
-      (show r - 1 < ex.cur w₀ t by have := ht w₀ hw₀; omega)
-    exact ⟨t', h⟩
-  obtain ⟨tc, htc, htc_min⟩ : ∃ tc, (ex.st tc).TimeoutCert (r - 1) ∧
-      ∀ u, (ex.st u).TimeoutCert (r - 1) → tc ≤ u :=
+  -- the first tick at which some honest validator holds `r`
+  have hex : ∃ t', ∃ v ∈ Q.honest, r ≤ ex.cur v t' := ⟨t, w₀, hw₀, ht w₀ hw₀⟩
+  obtain ⟨tc, ⟨w₁, hw₁, hw₁r⟩, htc_min⟩ : ∃ tc, (∃ v ∈ Q.honest, r ≤ ex.cur v tc) ∧
+      ∀ u, (∃ v ∈ Q.honest, r ≤ ex.cur v u) → tc ≤ u :=
     ⟨Nat.find hex, Nat.find_spec hex, fun u hu => Nat.find_min' hex hu⟩
-  -- it appears after GST
+  -- it is after GST
   have htc_gst : env.GST < tc := by
     by_contra hle; push Not at hle
-    obtain ⟨u, hu, hsig⟩ := htc.exists_honest_HSig
-    have h1 : r - 1 ≤ ex.cur u tc := (ex.inv tc u hu).time_le_cur (r - 1) hsig
-    have h2 := ex.cur_mono u hle
-    have h3 := hRle u hu
+    have h2 := ex.cur_mono w₁ hle
+    have h3 := hRle w₁ hw₁
     omega
-  -- a validator at or beyond `r` entered it after `tc`
-  have hentry_gt : ∀ v ∈ Q.honest, ∀ u, r ≤ ex.cur v u → tc < ex.entry v u := by
+  -- a validator at or beyond `r` entered it at or after `tc`
+  have hentry_ge : ∀ v ∈ Q.honest, ∀ u, r ≤ ex.cur v u → tc ≤ ex.entry v u := by
     intro v hv u hu
     have hce := ex.cur_entry v u
-    obtain ⟨t', ht', htc'⟩ := ex.exists_tc_of_gt hrs' hv
-      (show r - 1 < ex.cur v (ex.entry v u) by rw [hce]; omega)
-    exact lt_of_le_of_lt (htc_min t' htc') ht'
+    exact htc_min _ ⟨v, hv, by rw [hce]; exact hu⟩
   -- no honest timeout vote for `r` until `tc + d`
   have hno_time : ∀ u, u ≤ tc + d → ∀ v ∈ Q.honest, ¬ (ex.st u).HSig v (.time r) := by
     intro u hu v hv hsig
@@ -337,7 +353,7 @@ theorem Env.liveness : ∃ t, ex.Done t := by
     simp only [Option.some.injEq] at hd'
     subst hd'
     have hdead' : ex.entry v u' + d ≤ u' := hdead
-    have := hentry_gt v hv u' hcur.ge
+    have := hentry_ge v hv u' hcur.ge
     omega
   -- hence nobody is beyond `r` until `tc + d`
   have hle_r : ∀ u, u ≤ tc + d → ∀ v ∈ Q.honest, ex.cur v u ≤ r := by
@@ -346,10 +362,13 @@ theorem Env.liveness : ∃ t, ex.Done t := by
     · exact h v hv
     · obtain ⟨u', hu', hsig⟩ := htc'.exists_honest_HSig
       exact absurd hsig (hno_time t' (by omega) u' hu')
-  -- everybody is at `r` from `tc + Δ` on, unless done
+  -- everybody is at `r` from `tc + Δ` on, unless done: `w₁` passed `r - 1`, so some honest
+  -- validator recorded a timeout certificate for at least `r - 1`, which reaches everyone
   have hat : ∀ v ∈ Q.honest, r ≤ ex.cur v (tc + env.Δ) ∨ ex.Done (tc + env.Δ) := by
     intro v hv
-    obtain ⟨t', _, ht'', h⟩ := env.tc tc htc_gst.le (r - 1) htc v hv
+    rcases ex.le_round_or_tc_field hrs' tc with h | ⟨w', hw', τ, hτ, hrτ⟩
+    · exact absurd (h w₁ hw₁) (by omega)
+    obtain ⟨t', _, ht'', h⟩ := env.tc_known tc htc_gst.le w' hw' τ hτ v hv
     rcases h with h | h
     · left; have := ex.cur_mono v ht''; omega
     · right; exact Done.mono ex ht'' h

@@ -13,8 +13,10 @@ timed execution after a global stabilisation time `GST` with delay bound
   client_propose, Lemma round-growth);
 * **timeout**: a validator whose deadline has passed signs a timeout vote
   within `Δ` (the owner requests it; Alg. on_timeout);
-* **tc**: a timeout certificate reaches every honest validator within `Δ`
-  (the owner adopts and forwards it; Alg. on_timeout_certificate);
+* **tc_known**, **tc_honest**: a timeout certificate recorded by an honest
+  validator, or formed from every honest validator's timeout vote, reaches
+  every honest validator within `Δ` (the owner adopts, assembles and
+  forwards it; Alg. on_timeout_certificate);
 * **propose**: once every honest validator is in a single-leader round
   led solely by the honest owner, the owner's proposal — built by the
   re-proposal rule from the locking blocks read at some `t_q` — is
@@ -90,9 +92,14 @@ structure Env where
   timeout : ∀ t, GST ≤ t → ∀ v ∈ Q.honest, ∀ d, tm.dur cfg (ex.cur v t) = some d →
     ex.entry v t + d ≤ t → ∃ t', t ≤ t' ∧ t' ≤ t + Δ ∧
       ((ex.st t').HSig v (.time (ex.cur v t)) ∨ ex.cur v t < ex.cur v t' ∨ ex.Done t')
-  /-- A timeout certificate reaches every honest validator within `Δ`. -/
-  tc : ∀ t, GST ≤ t → ∀ r, (ex.st t).TimeoutCert r → ∀ v ∈ Q.honest,
-    ∃ t', t ≤ t' ∧ t' ≤ t + Δ ∧ (r < ex.cur v t' ∨ ex.Done t')
+  /-- A timeout certificate recorded by an honest validator reaches every honest
+  validator within `Δ` (the owner adopts and forwards it). -/
+  tc_known : ∀ t, GST ≤ t → ∀ v ∈ Q.honest, ∀ τ ∈ ((ex.st t).locals v).tc, ∀ w ∈ Q.honest,
+    ∃ t', t ≤ t' ∧ t' ≤ t + Δ ∧ (τ < ex.cur w t' ∨ ex.Done t')
+  /-- Timeout votes from every honest validator form a certificate that reaches every
+  honest validator within `Δ` (the owner assembles and forwards it). -/
+  tc_honest : ∀ t, GST ≤ t → ∀ τ, (∀ v ∈ Q.honest, (ex.st t).HSig v (.time τ)) →
+    ∀ w ∈ Q.honest, ∃ t', t ≤ t' ∧ t' ≤ t + Δ ∧ (τ < ex.cur w t' ∨ ex.Done t')
   /-- The owner's proposal in a round it leads solely reaches everyone within `L`. -/
   propose : ∀ t, GST ≤ t → ∀ r, cfg.IsSingle r → (∀ o', cfg.Eligible r o' ↔ o' = o) →
     (∀ v ∈ Q.honest, ex.cur v t = r) → ¬ ex.Done t →

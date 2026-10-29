@@ -93,7 +93,8 @@ theorem VInv.set_self {cfg : Config Owner Block} {s : State V Owner Block} {v : 
     (hfin : ∀ B, l'.finalized = some B → (s.locals v).finalized = some B ∨ ∃ r, s.ConfCert B r)
     (hlb : ∀ lb ∈ (s.locals v).lb, ∃ lb' ∈ l'.lb, lb.round ≤ lb'.round)
     (hlbc : ∀ B ρ, l'.lb = some (.cert B ρ) → (s.locals v).lb = some (.cert B ρ) ∨ s.ValCert B ρ)
-    (hlbf : ∀ B', l'.lb = some (.fast B') → (s.locals v).lb = some (.fast B')) :
+    (hlbf : ∀ B', l'.lb = some (.fast B') → (s.locals v).lb = some (.fast B'))
+    (htv : l'.timeoutVote = (s.locals v).timeoutVote) :
     VInv cfg (s.set v l') v where
   val_bound B ρ h := by
     rw [locals_set_self, hvv]
@@ -110,6 +111,7 @@ theorem VInv.set_self {cfg : Config Owner Block} {s : State V Owner Block} {v : 
   conf_le_cur B ρ h := by rw [locals_set_self]; exact (hv.conf_le_cur B ρ h).trans hcur
   time_le_cur ρ h := by rw [locals_set_self]; exact (hv.time_le_cur ρ h).trans hcur
   valVote_sig vv h := by rw [locals_set_self, hvv] at h; exact hv.valVote_sig vv h
+  timeoutVote_sig τ h := by rw [locals_set_self, htv] at h; exact hv.timeoutVote_sig τ h
   val_unique := hv.val_unique
   conf_unique := hv.conf_unique
   conf_valCert := hv.conf_valCert
@@ -139,7 +141,7 @@ theorem VInv.sign_time {cfg : Config Owner Block} {s : State V Owner Block} {v :
     (hr : r = (s.locals v).cur)
     (hvv : l'.valVote = (s.locals v).valVote) (hlk : l'.lock = (s.locals v).lock)
     (hcur : l'.cur = (s.locals v).cur) (hfin : l'.finalized = (s.locals v).finalized)
-    (hlb : l'.lb = (s.locals v).lb) :
+    (hlb : l'.lb = (s.locals v).lb) (htv : l'.timeoutVote = some r) :
     VInv cfg ((s.set v l').sign ⟨v, .time r, lk, none⟩) v := by
   have hval : ∀ B r', ((s.set v l').sign ⟨v, .time r, lk, none⟩).HSig v (.val B r') ↔
       s.HSig v (.val B r') := fun B r' => HSig_sign_of_msg_ne (by simp)
@@ -165,6 +167,9 @@ theorem VInv.sign_time {cfg : Config Owner Block} {s : State V Owner Block} {v :
     valVote_sig := fun vv h => by
       simp only [locals_sign, locals_set_self, hvv] at h
       exact (hval _ _).2 (hv.valVote_sig vv h)
+    timeoutVote_sig := fun τ h => by
+      simp only [locals_sign, locals_set_self, htv, Option.mem_def, Option.some.injEq] at h
+      rw [← h]; exact (htime _).2 (Or.inr rfl)
     val_unique := fun B₁ B₂ r' h₁ h₂ => hv.val_unique B₁ B₂ r' ((hval _ _).1 h₁) ((hval _ _).1 h₂)
     conf_unique := fun B₁ B₂ r' h₁ h₂ =>
       hv.conf_unique B₁ B₂ r' ((hconf _ _).1 h₁) ((hconf _ _).1 h₂)
@@ -220,6 +225,7 @@ theorem VInv.sign_val {cfg : Config Owner Block} {s : State V Owner Block} {v : 
   have hfin' : ((s.locals v).afterVal P).finalized = (s.locals v).finalized := rfl
   have hvv' : ((s.locals v).afterVal P).valVote = some (P.block, P.round) := rfl
   have hlb' : ((s.locals v).afterVal P).lb = (s.locals v).lbAfter P := rfl
+  have htv' : ((s.locals v).afterVal P).timeoutVote = (s.locals v).timeoutVote := rfl
   -- every earlier validation vote is below `P.round`
   have hval_lt : ∀ B ρ, s.HSig v (.val B ρ) → ρ < P.round := by
     intro B ρ h
@@ -251,6 +257,8 @@ theorem VInv.sign_val {cfg : Config Owner Block} {s : State V Owner Block} {v : 
     valVote_sig := fun vv h => by
       rw [hloc, hvv', Option.mem_def, Option.some.injEq] at h
       subst h; exact (hval _ _).2 (Or.inr ⟨rfl, rfl⟩)
+    timeoutVote_sig := fun τ h => by
+      rw [hloc, htv'] at h; exact (htime _).2 (hv.timeoutVote_sig τ h)
     val_unique := fun B₁ B₂ ρ h₁ h₂ => by
       rcases (hval _ _).1 h₁ with h₁ | ⟨hB₁, hr₁⟩
       · rcases (hval _ _).1 h₂ with h₂ | ⟨hB₂, hr₂⟩
@@ -344,6 +352,7 @@ theorem VInv.sign_conf {cfg : Config Owner Block} {s : State V Owner Block} {v :
     (hlb : l'.lb = some lbNew) (hlbr : lbNew.round = r)
     (hlbc : ∀ B' ρ, lbNew = .cert B' ρ → s.ValCert B' ρ)
     (hlbf : ∀ B', lbNew = .fast B' → B = B')
+    (htv : l'.timeoutVote = (s.locals v).timeoutVote)
     (hcur : (s.locals v).cur ≤ l'.cur) (hrcur : r ≤ l'.cur)
     (hfin : l'.finalized = (s.locals v).finalized)
     (hvalle : ∀ vv ∈ (s.locals v).valVote, vv.2 ≤ r)
@@ -396,6 +405,8 @@ theorem VInv.sign_conf {cfg : Config Owner Block} {s : State V Owner Block} {v :
       rw [hloc]; exact (hv.time_le_cur ρ ((htime _).1 h)).trans hcur
     valVote_sig := fun vv h => by
       rw [hloc, hvv] at h; exact absurd h (Option.not_mem_none _)
+    timeoutVote_sig := fun τ h => by
+      rw [hloc, htv] at h; exact (htime _).2 (hv.timeoutVote_sig τ h)
     val_unique := fun B₁ B₂ ρ h₁ h₂ => hv.val_unique B₁ B₂ ρ ((hval _ _).1 h₁) ((hval _ _).1 h₂)
     conf_unique := fun B₁ B₂ ρ h₁ h₂ => by
       rcases (hconf _ _).1 h₁ with h₁ | ⟨hB₁, hr₁⟩
@@ -495,7 +506,7 @@ theorem Inv.step {cfg : Config Owner Block} {s s' : State V Owner Block} (hs : I
       obtain ⟨_, hfe, _, _, hvv, hlb, hlk⟩ := hok
       have hr0 : P.round = 0 := hf.2
       refine frame_sign _ _ rfl (hvi.sign_conf (some P) (lbNew := .fast P.block) rfl rfl rfl
-        (by simp [Locking.round, hr0]) (fun _ _ h => by cases h) (fun _ h => by cases h; rfl)
+        (by simp [Locking.round, hr0]) (fun _ _ h => by cases h) (fun _ h => by cases h; rfl) rfl
         (le_max_left _ _)
         (le_max_right _ _) rfl ?_ ?_ (fun hnf => absurd hf hnf)
         (fun _ => ⟨P, rfl, rfl, rfl, hfe⟩))
@@ -507,7 +518,7 @@ theorem Inv.step {cfg : Config Owner Block} {s s' : State V Owner Block} (hs : I
     · -- two-phase proposal, noted without a vote
       simp only [Option.some.injEq] at h; subst h
       refine frame_set _ (hvi.set_self rfl rfl (le_max_left _ _) (fun _ h => Or.inl h)
-        (fun lb hl => ⟨lb, hl, le_rfl⟩) (fun _ _ h => Or.inl h) (fun _ h => h))
+        (fun lb hl => ⟨lb, hl, le_rfl⟩) (fun _ _ h => Or.inl h) (fun _ h => h) rfl)
   | valCert B r =>
     rw [LeanLinera.step] at h
     split_ifs at h with hok hcv
@@ -515,8 +526,9 @@ theorem Inv.step {cfg : Config Owner Block} {s s' : State V Owner Block} (hs : I
       obtain ⟨hcert, _, _, hvalle, hlble⟩ := hok
       simp only [Option.some.injEq] at h; subst h
       refine frame_sign _ _ rfl (hvi.sign_conf none (lbNew := .cert B r) ?_ ?_ ?_ rfl
-        (fun B' ρ h => by cases h; exact hcert) (fun _ h => by cases h) ?_ ?_ ?_ hvalle hlble
+        (fun B' ρ h => by cases h; exact hcert) (fun _ h => by cases h) ?_ ?_ ?_ ?_ hvalle hlble
         (fun _ => hcert) (fun hf => absurd hcert (hs.not_valCert_fast hf)))
+      · simp [Local.afterValCert, hcv]
       · simp [Local.afterValCert, hcv]
       · simp [Local.afterValCert, hcv]
       · simp [Local.afterValCert, hcv]
@@ -526,7 +538,7 @@ theorem Inv.step {cfg : Config Owner Block} {s s' : State V Owner Block} (hs : I
     · -- the round advances without a vote
       obtain ⟨hcert, _, _, _, hlble⟩ := hok
       simp only [Option.some.injEq] at h; subst h
-      refine frame_set _ (hvi.set_self ?_ ?_ ?_ ?_ ?_ ?_ ?_)
+      refine frame_set _ (hvi.set_self ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_)
       · simp [Local.afterValCert, hcv]
       · simp [Local.afterValCert, hcv]
       · simp [Local.afterValCert, hcv]
@@ -544,13 +556,14 @@ theorem Inv.step {cfg : Config Owner Block} {s s' : State V Owner Block} (hs : I
         have hlbEq : ((s.locals v).afterValCert B r).lb = some (.cert B r) := by
           simp [Local.afterValCert, hcv]
         rw [hlbEq] at h'; cases h'
+      · simp [Local.afterValCert, hcv]
   | confCert B r =>
     rw [LeanLinera.step] at h
     split_ifs at h with hok
     obtain ⟨hcert, _⟩ := hok
     simp only [Option.some.injEq] at h; subst h
     refine frame_set _ (hvi.set_self rfl rfl le_rfl ?_ (fun lb hl => ⟨lb, hl, le_rfl⟩)
-      (fun _ _ h => Or.inl h) (fun _ h => h))
+      (fun _ _ h => Or.inl h) (fun _ h => h) rfl)
     intro B' h'
     simp only [Local.afterConfCert, Option.some.injEq] at h'
     subst h'; exact Or.inr ⟨r, hcert⟩
@@ -558,13 +571,13 @@ theorem Inv.step {cfg : Config Owner Block} {s s' : State V Owner Block} (hs : I
     rw [LeanLinera.step] at h
     split_ifs at h with hok
     simp only [Option.some.injEq] at h; subst h
-    exact frame_sign _ _ rfl (hvi.sign_time r _ hok.2.1 rfl rfl rfl rfl rfl)
+    exact frame_sign _ _ rfl (hvi.sign_time r _ hok.2.1 rfl rfl rfl rfl rfl rfl)
   | timeoutCert r =>
     rw [LeanLinera.step] at h
     split_ifs at h with hok
     simp only [Option.some.injEq] at h; subst h
     exact frame_set _ (hvi.set_self rfl rfl (le_max_left _ _) (fun _ h => Or.inl h)
-      (fun lb hl => ⟨lb, hl, le_rfl⟩) (fun _ _ h => Or.inl h) (fun _ h => h))
+      (fun lb hl => ⟨lb, hl, le_rfl⟩) (fun _ _ h => Or.inl h) (fun _ h => h) rfl)
 
 /-- The invariant holds in every reachable state. -/
 theorem Inv.reachable {cfg : Config Owner Block} {s : State V Owner Block}

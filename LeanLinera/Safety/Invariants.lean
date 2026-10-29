@@ -67,6 +67,8 @@ structure VInv (cfg : Config Owner Block) (s : State V Owner Block) (v : V) : Pr
   time_le_cur : ∀ ρ, s.HSig v (.time ρ) → ρ ≤ (s.locals v).cur
   /-- The latest validation vote was signed. -/
   valVote_sig : ∀ vv ∈ (s.locals v).valVote, s.HSig v (.val vv.1 vv.2)
+  /-- The latest timeout vote was signed. -/
+  timeoutVote_sig : ∀ τ ∈ (s.locals v).timeoutVote, s.HSig v (.time τ)
   /-- At most one validation vote per round. -/
   val_unique : ∀ B₁ B₂ ρ, s.HSig v (.val B₁ ρ) → s.HSig v (.val B₂ ρ) → B₁ = B₂
   /-- At most one confirmation vote per round. -/
@@ -110,6 +112,7 @@ theorem VInv.init (cfg : Config Owner Block) (v : V) :
   conf_le_cur B ρ h := absurd h (HSig_init v _)
   time_le_cur ρ h := absurd h (HSig_init v _)
   valVote_sig vv h := by simp [State.init, Local.init] at h
+  timeoutVote_sig τ h := by simp [State.init, Local.init] at h
   val_unique B₁ B₂ ρ h := absurd h (HSig_init v _)
   conf_unique B₁ B₂ ρ h := absurd h (HSig_init v _)
   conf_valCert B ρ h := absurd h (HSig_init v _)
@@ -199,6 +202,7 @@ theorem VInv.sign_of_ne {cfg : Config Owner Block} {s : State V Owner Block} {v 
   conf_le_cur B ρ hs := hv.conf_le_cur B ρ ((HSig_sign_of_ne h _).1 hs)
   time_le_cur ρ hs := hv.time_le_cur ρ ((HSig_sign_of_ne h _).1 hs)
   valVote_sig vv hvv := (hv.valVote_sig vv hvv).sign e
+  timeoutVote_sig τ hτ := (hv.timeoutVote_sig τ hτ).sign e
   val_unique B₁ B₂ ρ h₁ h₂ :=
     hv.val_unique B₁ B₂ ρ ((HSig_sign_of_ne h _).1 h₁) ((HSig_sign_of_ne h _).1 h₂)
   conf_unique B₁ B₂ ρ h₁ h₂ :=
@@ -230,6 +234,7 @@ theorem VInv.set_of_ne {cfg : Config Owner Block} {s : State V Owner Block} {v w
   conf_le_cur B ρ hs := by rw [locals_set_of_ne _ _ h]; exact hv.conf_le_cur B ρ hs
   time_le_cur ρ hs := by rw [locals_set_of_ne _ _ h]; exact hv.time_le_cur ρ hs
   valVote_sig vv hvv := by rw [locals_set_of_ne _ _ h] at hvv; exact hv.valVote_sig vv hvv
+  timeoutVote_sig τ hτ := by rw [locals_set_of_ne _ _ h] at hτ; exact hv.timeoutVote_sig τ hτ
   val_unique := hv.val_unique
   conf_unique := hv.conf_unique
   conf_valCert := hv.conf_valCert

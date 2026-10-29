@@ -527,7 +527,10 @@ a timeout certificate for it that existed strictly earlier.
 
 `Liveness/Timed/Env.lean`: the environment `Env` — `GST`, `Δ`, `L`, the
 honest owner `o` and its per-round proposal — with obligations
-`leave_multi`, `timeout`, `tc`, `propose`, `cert`, `leader`, `inc_pos`,
+`leave_multi`, `timeout`, `tc_known` and `tc_honest` (a timeout
+certificate recorded by an honest validator, or formed from every honest
+validator's timeout vote, reaches everyone: the only certificates an owner
+can learn), `propose`, `cert`, `leader`, `inc_pos`,
 `fast_honest` (the super owner proposes a single fast block: no
 equivocation) and `fast_quiet` (no fast-round proposal in flight after
 `GST`), each allowing the escape "a block has been confirmed". The
