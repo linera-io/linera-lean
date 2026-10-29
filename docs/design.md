@@ -29,6 +29,7 @@ for each:
 | Thm. safety | no two conflicting `ConfCert`s at a height | `safety` | done |
 | §Model Safety | no two honest validators finalize different blocks | `finalized_agree` | done |
 | §Model Authenticity | an honest Val vote answers an eligible owner's proposal | `vote_of_eligible`, `fast_vote_of_super` | done |
+| §Model Eventual Consistency | a confirmation certificate delivered to every honest validator finalizes the same block everywhere | `eventual_consistency` | done |
 | App. fast-round | safety is preserved when round 0 skips validation | `safety` (the fast round is in the model) | done |
 | App. fast-round | an honest super owner finalizes in round 0 in one round trip | `fast_round_finalizes` | done |
 | Lem. honest-single-leader | every owner is the sole eligible proposer in a single-leader round after any round (round-robin, no super owner) | `Config.exists_sole_eligible` | done |
@@ -40,9 +41,7 @@ for each:
 
 Out of scope: cross-chain messaging, execution semantics (`Exec`), ownership
 changes between heights (the instance is single-shot, so the owner set is a
-parameter), certificate upload and repair (App. B.1), and the Eventual
-Consistency requirement, which is a statement about relaying rather than
-about the protocol.
+parameter), and certificate upload and repair (App. B.1).
 
 ## 2. Decisions (confirmed 2026-10-29)
 

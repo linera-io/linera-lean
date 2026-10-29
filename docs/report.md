@@ -255,6 +255,22 @@ theorem acceptable_of_highest_lb {cfg : Config Owner Block} {s : State V Owner B
     ∀ v ∈ Q.honest, (s.locals v).lockOk cfg P
 ```
 
+**Eventual consistency** (the system model's requirement): once a
+confirmation certificate exists in a reachable state, delivering it to
+every honest validator that has not yet finalized leaves every honest
+validator finalized on its block, the others having finalized the same
+block by safety:
+
+```lean
+theorem eventual_consistency {cfg : Config Owner Block} {s : State V Owner Block}
+    (hs : Reachable cfg s) {B : Block} {r : Round} (hcert : s.ConfCert B r) (L : List V)
+    (hnd : L.Nodup) (hL : ∀ v ∈ L, v ∈ Q.honest)
+    (hall : ∀ v ∈ Q.honest, (s.locals v).finalized = none → v ∈ L)
+    (hfresh : ∀ v ∈ L, (s.locals v).finalized = none) :
+    ∃ s', run cfg (L.map fun v => (v, .confCert B r)) s = some s' ∧ Reachable cfg s' ∧
+      ∀ v ∈ Q.honest, (s'.locals v).finalized = some B
+```
+
 **The schedule** (paper, Lemma honest-single-leader), for a round-robin
 leader and no super owner (a super owner may propose in single-leader
 rounds in the implementation, so the sole-leader property needs it to
@@ -428,6 +444,4 @@ The validator fallback rounds and
 the pseudo-random leader schedule of the implementation (the schedule is
 an abstract parameter with a fairness obligation); open multi-leader
 rounds; the unlocking-round attestation; the owner as an explicit state
-machine discharging the obligations `propose` and `cert`; and the
-Eventual Consistency requirement of the system model, which concerns
-relaying rather than the protocol.
+machine discharging the obligations `propose` and `cert`.
