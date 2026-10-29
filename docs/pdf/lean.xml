@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE language SYSTEM "language.dtd">
+<!-- A KDE syntax definition for Lean 4, for pandoc's highlighter. -->
+<language name="lean" version="1" kateversion="5.0" section="Sources" extensions="*.lean" mimetype="text/x-lean">
+  <highlighting>
+    <list name="keywords">
+      <item>theorem</item><item>lemma</item><item>def</item><item>abbrev</item><item>noncomputable</item>
+      <item>structure</item><item>inductive</item><item>class</item><item>instance</item><item>where</item>
+      <item>namespace</item><item>end</item><item>section</item><item>variable</item><item>open</item>
+      <item>import</item><item>omit</item><item>include</item><item>in</item><item>deriving</item>
+      <item>fun</item><item>let</item><item>have</item><item>show</item><item>from</item>
+      <item>if</item><item>then</item><item>else</item><item>match</item><item>with</item>
+      <item>do</item><item>return</item><item>by</item><item>at</item><item>using</item>
+      <item>extends</item><item>private</item><item>protected</item><item>notation</item>
+      <item>scoped</item><item>set_option</item><item>attribute</item><item>example</item>
+    </list>
+    <list name="tactics">
+      <item>intro</item><item>intros</item><item>rintro</item><item>exact</item><item>refine</item>
+      <item>apply</item><item>rw</item><item>simp</item><item>simpa</item><item>omega</item>
+      <item>cases</item><item>rcases</item><item>obtain</item><item>induction</item><item>subst</item>
+      <item>constructor</item><item>unfold</item><item>change</item><item>exfalso</item>
+      <item>by_cases</item><item>by_contra</item><item>split_ifs</item><item>split</item>
+      <item>left</item><item>right</item><item>trivial</item><item>rfl</item><item>decide</item>
+      <item>push</item><item>absurd</item><item>infer_instance</item><item>classical</item>
+      <item>nlinarith</item><item>linarith</item><item>funext</item><item>congr</item><item>ext</item>
+    </list>
+    <list name="sorts">
+      <item>Prop</item><item>Type</item><item>Sort</item><item>Bool</item><item>Nat</item>
+      <item>Option</item><item>List</item><item>Finset</item><item>true</item><item>false</item>
+      <item>none</item><item>some</item><item>True</item><item>False</item>
+    </list>
+    <contexts>
+      <context name="Normal" attribute="Normal" lineEndContext="#stay">
+        <Detect2Chars attribute="Comment" context="Doc" char="/" char1="-" />
+        <Detect2Chars attribute="Comment" context="LineComment" char="-" char1="-" />
+        <DetectChar attribute="String" context="String" char="&quot;" />
+        <RegExpr attribute="Attribute" String="@\[[^\]]*\]" />
+        <RegExpr attribute="Symbol" String="[∀∃λ→↔←⟨⟩≤≥≠∧∨¬∈∉∑∩∪∘⊆×▸∣∅ℕ]" />
+        <keyword attribute="Keyword" String="keywords" />
+        <keyword attribute="Tactic" String="tactics" />
+        <keyword attribute="Sort" String="sorts" />
+        <RegExpr attribute="Number" String="\b[0-9]+\b" />
+      </context>
+      <context name="Doc" attribute="Comment" lineEndContext="#stay">
+        <Detect2Chars attribute="Comment" context="#pop" char="-" char1="/" />
+      </context>
+      <context name="LineComment" attribute="Comment" lineEndContext="#pop" />
+      <context name="String" attribute="String" lineEndContext="#stay">
+        <DetectChar attribute="String" context="#pop" char="&quot;" />
+      </context>
+    </contexts>
+    <itemDatas>
+      <itemData name="Normal" defStyleNum="dsNormal" />
+      <itemData name="Keyword" defStyleNum="dsKeyword" />
+      <itemData name="Tactic" defStyleNum="dsControlFlow" />
+      <itemData name="Sort" defStyleNum="dsDataType" />
+      <itemData name="Symbol" defStyleNum="dsOperator" />
+      <itemData name="Attribute" defStyleNum="dsAttribute" />
+      <itemData name="Number" defStyleNum="dsDecVal" />
+      <itemData name="String" defStyleNum="dsString" />
+      <itemData name="Comment" defStyleNum="dsComment" />
+    </itemDatas>
+  </highlighting>
+  <general>
+    <keywords casesensitive="1" additionalDeliminator="'" />
+  </general>
+</language>
