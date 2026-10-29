@@ -29,7 +29,8 @@ pdf: report
 	pandoc docs/report.md -o docs/pdf/report.pdf --pdf-engine=xelatex --toc \
 	  --syntax-definition=docs/pdf/lean.xml --syntax-highlighting=tango \
 	  -V mainfont="Times New Roman" -V monofont="Menlo" -V geometry:margin=2.5cm \
-	  -V fontsize=12pt --toc-depth=2
+	  -V fontsize=12pt --toc-depth=2 \
+	  -V header-includes='\usepackage{fvextra}\fvset{fontsize=\footnotesize,breaklines=true,breakindent=2em}'
 
 help:
 	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/^## /  make /'
