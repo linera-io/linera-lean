@@ -16,3 +16,5 @@ import Linera.Liveness.Timed.Liveness
 import Linera.Safety.Erasure
 import Linera.Liveness.Consistency
 import Linera.Liveness.Timed.Owner
+import Linera.Chain.Message
+import Linera.Chain.Inbox

@@ -602,3 +602,103 @@ repository `~/git/linera-lean` with local commits; abstract weighted quorum
 system; safety untimed, fast-round liveness under an honest leader only,
 slow-round view changes under partial synchrony; fast and slow rounds both
 in the model.
+
+## 10. Cross-chain layer: messages and events (started 2026-10-30)
+
+Scope: the message and event primitives of `communication.tex` and
+`execution_model.tex`, modelled after the implementation
+(`linera-chain/src/inbox.rs`, `outbox.rs`, `chain.rs`,
+`linera-execution/src/system.rs`, `linera-core/src/chain_worker/state.rs`).
+Blobs are out of scope: they are content-addressed data with no ordering
+and no state transition to reason about. Application execution is opaque.
+
+### 10.1 What the implementation does
+
+**Messages.** A certified sender block at height `h` produces, per
+recipient, *bundles* `(h, transaction index, messages)`. Each message has a
+kind (`Simple`, `Protected`, `Tracked`, `Bouncing`) and a grant; a bundle is
+*skippable* iff all its messages are `Simple` or `Bouncing` with zero
+grant. Delivery is internal to a validator: the worker that executed or
+preprocessed the sender block pushes the bundles to the recipient's worker
+(`UpdateRecipient`, retried until `ConfirmUpdatedRecipient`), in height
+order per (sender, recipient) pair, declaring the previous sending height
+so the recipient detects gaps. The recipient's **inbox** for a sender is
+two queues ordered by cursor `(height, index)` and two cursors
+`next_to_add`, `next_to_remove`; at most one queue is non-empty.
+`add_bundle` (delivery) and `remove_bundle` (consumption by a block of the
+recipient) are the only operations:
+
+- add below `next_to_add`, or remove below `next_to_remove`: error;
+- remove with earlier *added* bundles still queued: they are discarded iff
+  skippable, else error (`UnskippableBundle`);
+- remove meeting an added bundle with the same cursor: must be equal
+  (`UnexpectedBundle`); with no added bundle: the bundle is queued as
+  *removed by anticipation*;
+- add meeting an anticipated bundle: equal cursor ⇒ must be equal and is
+  dequeued; lower cursor ⇒ must be skippable and is dropped; otherwise
+  error. With no anticipated bundle: queued as added.
+
+A **proposal** consuming a bundle is accepted only if the bundle is present
+in the validator's inbox (`remove_bundles_from_inboxes` with
+`must_be_present`); a *confirmed* block consuming a bundle not yet received
+removes it by anticipation. The client resolves a rejection by uploading the
+sender chain's certificates to that validator (`app:missing-certs`).
+
+**Events.** A certified publisher block emits events `(stream, index)` with
+contiguous indices; validators record them when they execute or preprocess
+the block (`next_expected_events`, per publisher chain and stream). A
+subscriber chain keeps, per (publisher, stream, application), the next
+index to process; the operation `UpdateStream(publisher, stream,
+next_index)` is valid iff the application is subscribed, `next_index` is
+above its recorded index, and the event `next_index − 1` is available
+locally (`EventsNotFound` otherwise). Checkpoints add a readable floor
+(`first_index`); the model ignores checkpoints.
+
+### 10.2 What the paper says, and the differences
+
+The paper presents the inbox as a pair of sets with commutative add and
+remove and says the implementation "enforces an ordered delivery"; it does
+not say what a validator does with a proposal consuming a message it has
+not received (the implementation rejects it), nor that the recipient's
+inbox lags behind the certificates the validator holds because delivery is
+an internal asynchronous RPC. The paper states no cross-chain security
+requirement; the properties below are proposed.
+
+### 10.3 Properties
+
+- **Inbox order-independence** (`Inbox.run_eq_canonical`): for one
+  validator, a sequence of adds and removes that succeeds yields an inbox
+  determined by the sequence of added bundles and the sequence of removed
+  bundles alone, not by their interleaving. This is the precise form of
+  "the order in which validators receive messages is irrelevant", with the
+  skippable rule as the only subtlety.
+- **Inbox eventual consistency**: two honest validators that hold the same
+  certificates of the sender and have executed the same prefix of the
+  recipient have the same inbox once their internal deliveries have caught
+  up. Corollary of order-independence plus a delivery obligation on the
+  validator-internal network (reliable by retry; bounded after GST).
+- **No forgery, exactly once**: a certified recipient block consuming a
+  bundle implies a certified sender block produced it; a bundle is consumed
+  at most once. Needs the multi-height chain layer and the honest-signer
+  argument with a validator-local validity predicate.
+- **Event availability and consistency**: the events a validator holds for a
+  stream form a prefix determined by the publisher chain; `UpdateStream`
+  validity is monotone in what the validator holds.
+
+### 10.4 Modules
+
+```
+Linera/Chain/Message.lean   cursors, message kinds, bundles, skippable
+Linera/Chain/Inbox.lean     the two-queue inbox, add/remove, WF invariant,
+                            canonical form, order-independence
+Linera/Chain/Event.lean     streams, publisher log, subscriber counters,
+                            UpdateStream validity, availability monotone
+Linera/Chain/Node.lean      a validator's view of several chains: executed
+                            prefixes, inboxes, pending internal deliveries,
+                            held events; consistency theorems
+LineraTest/Inbox.lean       the scenarios of inbox_tests.rs, by decide
+```
+
+The multi-height chain layer and the link to per-height consensus (a
+validity predicate that depends on the validator's inbox) come after; they
+reopen the liveness proofs and are tracked separately.
