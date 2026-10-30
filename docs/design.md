@@ -19,8 +19,8 @@ for each:
 
 | Paper | Statement | Lean | Status |
 |:---|:---|:---|:---|
-| Lem. honest-mass | a certificate carries ≥ `n−2f` honest weight | `Weighted.honest_wt_of_quorum` | done |
-| (implicit) quorum intersection | two quorums share an honest validator | `Weighted.exists_honest_mem_inter`, `QuorumSystem.exists_honest_mem_inter` | done |
+| Lem. quorum-intersection | two quorums share an honest validator | `Weighted.exists_honest_mem_inter`, `QuorumSystem.exists_honest_mem_inter` | done |
+| Lem. honest-quorum | the honest validators form a quorum (used by every certificate assembled from all honest votes) | `Weighted.quorum_honest`, `QuorumSystem.quorum_honest` | done |
 | Lem. no-further-votes | a finalized validator refuses every input | `step_none_of_finalized` | done |
 | Lem. vote-monotone | `r_cur` and the lock round never decrease; votes in increasing rounds | `step_cur_le`, `step_lock_le`, `VInv.val_bound`, `VInv.conf_bound` | done |
 | Lem. unique-valcert | at most one block has a `ValCert` per round; none in the fast round | `valCert_unique`, `not_valCert_fast` | done |
@@ -38,6 +38,7 @@ for each:
 | Lem. round-growth | every round is eventually reached by every honest validator, or a block is confirmed | `TExec.Env.reach_round` (`advance_single`, `advance_multi_list`) | done |
 | Lem. long-rounds | a single-leader round beyond `firstSL + Δ + 2L + 2` lasts long enough (linear durations) | inside `TExec.Env.liveness` (`hdbig`) | done |
 | Thm. liveness | an honest active owner + partial synchrony + no super-owner equivocation ⇒ a block is confirmed | `TExec.Env.liveness` | done |
+| Thm. liveness (owner loop + network) | same, with the owner's loop and a message-delay bound in place of the `Env` obligations | `TExec.OwnerEnv.liveness` | done |
 
 Out of scope: cross-chain messaging, execution semantics (`Exec`), ownership
 changes between heights (the instance is single-shot, so the owner set is a
@@ -255,6 +256,13 @@ From these, the theorems:
   minimality.
 - `finalized_agree`: `finalized v = some B` requires `ConfCert B r` as a
   step precondition.
+
+Paper alignment (2026-10-30): the appendix's former Lemma "Honest Mass in a
+Certificate" (`n − 2f` honest weight in every certificate) was cited by no
+proof, in the paper or in Lean, and is replaced by "Honest Quorum", the fact
+the liveness proofs actually use. Lemma vote-monotone has no single Lean
+theorem: the safety proof uses the lock recorded on each signature
+(`ValGhost.lockAt`) instead of the temporal "confirmed first" argument.
 
 Each invariant gets a `decide` witness on a 4-validator, `f = 1` model
 first, including a model with `byzantine = ∅` to keep F1 honest.
