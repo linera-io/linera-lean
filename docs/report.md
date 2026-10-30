@@ -528,7 +528,145 @@ block before proposing (design.md, F7; the obligation `deliver` on the
 proposal built from such a view), and that it leaves multi-leader rounds
 (`leave_multi`).
 
-## 5. What is not covered
+## 5. Cross-chain messages and events
+
+The paper's cross-chain primitives (`communication.tex`) are modelled
+after the implementation (`linera-chain/src/inbox.rs`, `chain.rs`,
+`linera-execution/src/system.rs`). Nothing here involves a second
+validator: inboxes are local, fed by the validator's own copies of the
+sender's certified blocks, and the only shared object is the *ledger*, the
+certified block of each chain at each height, unique by `safety`.
+
+### 5.1 The inbox
+
+A recipient's inbox for one sender is two queues ordered by cursor
+`(height, index)` and two cursors, as in `InboxStateView`:
+
+```lean
+structure Inbox (Payload : Type*) where
+  /-- All bundles below this cursor have been added. -/
+  nextAdd : Cursor
+  /-- All bundles below this cursor have been removed. -/
+  nextRemove : Cursor
+  /-- Added, waiting to be removed. -/
+  added : List (Bundle Payload)
+  /-- Removed by anticipation, waiting to be added. -/
+  removed : List (Bundle Payload)
+  deriving DecidableEq, Repr
+```
+
+`Inbox.add` is `add_bundle` (delivery) and `Inbox.remove` is
+`remove_bundle` (consumption by a block of the recipient), with the
+implementation's error cases as `none`: stale cursors, consuming past an
+unskippable bundle, a bundle differing from the one anticipated. The
+scenarios of `inbox_tests.rs` replay on these definitions by `decide`
+(`LineraTest/Inbox.lean`).
+
+The paper's claim that "the order in which validators receive messages is
+irrelevant to the final inbox state" is the following theorem. The
+*canonical* inbox of a delivered sequence `A` and a consumed sequence `R`
+keeps the delivered bundles not yet consumed and the consumed bundles not
+yet delivered:
+
+```lean
+def canonical (A R : List (Bundle Payload)) : Inbox Payload where
+  nextAdd := after A
+  nextRemove := after R
+  added := A.filter (fun a => decide (after R ≤ a.cursor))
+  removed := R.filter (fun r => decide (after A ≤ r.cursor))
+```
+
+A succeeding sequence of deliveries and consumptions from the empty inbox
+ends in the canonical inbox of its delivered and consumed sequences,
+whatever their interleaving:
+
+```lean
+theorem run_eq_canonical {ops : List (Op Payload)} {I : Inbox Payload}
+    (h : init.run ops = some I) : I = canonical (adds ops) (removes ops)
+```
+
+```lean
+theorem run_eq_of_same_history {ops₁ ops₂ : List (Op Payload)} {I₁ I₂ : Inbox Payload}
+    (h₁ : init.run ops₁ = some I₁) (h₂ : init.run ops₂ = some I₂)
+    (ha : adds ops₁ = adds ops₂) (hr : removes ops₁ = removes ops₂) : I₁ = I₂
+```
+
+The skippable rule is the only subtlety: a skippable bundle delivered
+after a later one was consumed by anticipation is dropped, and the
+canonical form drops it too.
+
+### 5.2 A validator's view of several chains
+
+```lean
+structure Node (Chain Payload : Type*) where
+  /-- The next height to execute, per chain. -/
+  executed : Chain → ℕ
+  /-- Heights stored without execution, per chain. -/
+  preprocessed : Chain → Finset ℕ
+  /-- `delivered s r`: the next height of `s` to deliver to `r`. -/
+  delivered : Chain → Chain → ℕ
+  /-- `inboxes r s`: the inbox of recipient `r` for sender `s`. -/
+  inboxes : Chain → Chain → Inbox Payload
+```
+
+`Node.execute` executes the next certified block of a chain, consuming its
+incoming bundles sender by sender (`remove_bundles_from_inboxes`);
+`Node.preprocess` stores a block without executing it;
+`Node.deliver` pushes the bundles of the next *stored* block of a sender to
+a recipient's inbox (`UpdateRecipient`), so delivery requires the
+validator to hold the sender block and lags behind the certificates it
+holds. `Node.Reach` is reachability from the empty view.
+
+Every inbox of a reachable view is canonical, hence determined by the
+delivered prefix of the sender and the executed prefix of the recipient:
+
+```lean
+theorem Reach.inboxes_eq {N : Node Chain Payload} (h : Reach L N) (r s : Chain) :
+    N.inboxes r s = Inbox.canonical (L.addsUpTo s r (N.delivered s r))
+      (L.removesUpTo r s (N.executed r))
+```
+
+**Inbox consistency**: two validators that have executed the same prefix
+of `r` and delivered the same prefix of `s` to `r` have the same inbox,
+whatever the order in which each executed and delivered:
+
+```lean
+theorem inbox_eq_of_counters {N₁ N₂ : Node Chain Payload} (h₁ : Reach L N₁) (h₂ : Reach L N₂)
+    {r s : Chain} (he : N₁.executed r = N₂.executed r) (hd : N₁.delivered s r = N₂.delivered s r) :
+    N₁.inboxes r s = N₂.inboxes r s
+```
+
+Validators holding the same certificates agree only once their internal
+deliveries have caught up (delivery is an asynchronous worker-to-worker
+call, retried until acknowledged); that eventual statement needs a timed
+layer with a delivery obligation and is not yet formalized. The
+validator-local validity check of a proposal consuming bundles is
+`Node.Present` (`must_be_present`):
+
+```lean
+def Present (N : Node Chain Payload) (c : Chain) (B : Block Chain Stream Payload) : Prop :=
+  ∀ x ∈ B.incoming, x.2.1 ∈ (N.inboxes c x.1).added
+```
+
+### 5.3 Events
+
+A stream's events are indexed contiguously by the publisher chain's blocks
+(`Ledger.countBefore`); a validator holds an event once it stores the
+block that emitted it (`Ledger.Held`, over the set of stored heights). Two
+validators holding the same event index hold the same payload, whatever
+blocks each has stored:
+
+```lean
+theorem Held.payload_eq {S S' : Set ℕ} {c : Chain} {st : Stream} {i : ℕ}
+    (h : L.Held S c st i) (h' : L.Held S' c st i) : h.payload = h'.payload
+```
+
+`StreamUpdate.Ok` is the validity of `UpdateStream(publisher, stream, next)`
+at a validator (`system.rs`: subscribed with a recorded index below
+`next`, and event `next − 1` held), monotone in the events held
+(`StreamUpdate.Ok.mono`).
+
+## 6. What is not covered
 
 The validator fallback rounds and
 the pseudo-random leader schedule of the implementation (the schedule is
@@ -536,3 +674,10 @@ an abstract parameter with a fairness obligation); open multi-leader
 rounds; the unlocking-round attestation; the owner's behaviour in
 multi-leader rounds (the obligation `leave_multi`); and an explicit
 message layer below the delivery bound `deliver`.
+
+For the cross-chain layer: the multi-height chain built from the
+per-height consensus (the ledger is a parameter, justified by `safety`);
+the link between `Node.Present` and the consensus validity predicate,
+hence no-forgery and exactly-once consumption across validators; the
+eventual form of inbox consistency; checkpoints and the readable floor of
+streams; message rejection, bouncing and tracked receipts; blobs.

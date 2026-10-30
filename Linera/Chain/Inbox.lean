@@ -77,6 +77,38 @@ def removes : List (Op Payload) → List (Bundle Payload)
   | .add _ :: rest => removes rest
   | .remove b :: rest => b :: removes rest
 
+theorem adds_append (ops₁ ops₂ : List (Op Payload)) :
+    adds (ops₁ ++ ops₂) = adds ops₁ ++ adds ops₂ := by
+  induction ops₁ with
+  | nil => rfl
+  | cons op rest ih => cases op <;> simp [adds, ih]
+
+theorem removes_append (ops₁ ops₂ : List (Op Payload)) :
+    removes (ops₁ ++ ops₂) = removes ops₁ ++ removes ops₂ := by
+  induction ops₁ with
+  | nil => rfl
+  | cons op rest ih => cases op <;> simp [removes, ih]
+
+theorem adds_map_add (bs : List (Bundle Payload)) : adds (bs.map Op.add) = bs := by
+  induction bs with
+  | nil => rfl
+  | cons b rest ih => simp [adds, ih]
+
+theorem removes_map_add (bs : List (Bundle Payload)) : removes (bs.map Op.add) = [] := by
+  induction bs with
+  | nil => rfl
+  | cons b rest ih => simp [removes, ih]
+
+theorem adds_map_remove (bs : List (Bundle Payload)) : adds (bs.map Op.remove) = [] := by
+  induction bs with
+  | nil => rfl
+  | cons b rest ih => simp [adds, ih]
+
+theorem removes_map_remove (bs : List (Bundle Payload)) : removes (bs.map Op.remove) = bs := by
+  induction bs with
+  | nil => rfl
+  | cons b rest ih => simp [removes, ih]
+
 /-! ### Canonical form -/
 
 /-- A list of bundles with strictly increasing cursors. -/
@@ -236,6 +268,14 @@ def step (I : Inbox Payload) : Op Payload → Option (Inbox Payload)
 def run (I : Inbox Payload) : List (Op Payload) → Option (Inbox Payload)
   | [] => some I
   | op :: rest => (I.step op).bind (run · rest)
+
+theorem run_append (I : Inbox Payload) (ops₁ ops₂ : List (Op Payload)) :
+    I.run (ops₁ ++ ops₂) = (I.run ops₁).bind (run · ops₂) := by
+  induction ops₁ generalizing I with
+  | nil => simp [run]
+  | cons op rest ih =>
+    simp only [List.cons_append, run, Option.bind_assoc]
+    cases I.step op <;> simp [ih]
 
 /-! ### The step lemmas -/
 

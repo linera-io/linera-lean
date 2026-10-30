@@ -18,3 +18,6 @@ import Linera.Liveness.Consistency
 import Linera.Liveness.Timed.Owner
 import Linera.Chain.Message
 import Linera.Chain.Inbox
+import Linera.Chain.Block
+import Linera.Chain.Event
+import Linera.Chain.Node

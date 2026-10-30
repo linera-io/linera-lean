@@ -39,6 +39,9 @@ for each:
 | Lem. long-rounds | a single-leader round beyond `firstSL + Δ + 2L + 2` lasts long enough (linear durations) | inside `TExec.Env.liveness` (`hdbig`) | done |
 | Thm. liveness | an honest active owner + partial synchrony + no super-owner equivocation ⇒ a block is confirmed | `TExec.Env.liveness` | done |
 | Thm. liveness (owner loop + network) | same, with the owner's loop and a message-delay bound in place of the `Env` obligations | `TExec.OwnerEnv.liveness` | done |
+| §Communication, inbox commutativity | a succeeding sequence of deliveries and consumptions yields an inbox determined by the delivered and consumed sequences alone | `Inbox.run_eq_canonical`, `Inbox.run_eq_of_same_history` | done |
+| §Communication, inbox convergence | validators with the same executed and delivered prefixes have the same inbox | `Node.inbox_eq_of_counters` (eventual form: pending, needs a timed delivery obligation) | partial |
+| §Communication, events | validators holding the same event hold the same payload; `UpdateStream` validity monotone in the events held | `Ledger.Held.payload_eq`, `StreamUpdate.Ok.mono` | done |
 
 Out of scope: cross-chain messaging, execution semantics (`Exec`), ownership
 changes between heights (the instance is single-shot, so the owner set is a
@@ -698,6 +701,13 @@ Linera/Chain/Node.lean      a validator's view of several chains: executed
                             held events; consistency theorems
 LineraTest/Inbox.lean       the scenarios of inbox_tests.rs, by decide
 ```
+
+Status (2026-10-30): all five modules exist and build; `run_eq_canonical`,
+`inbox_eq_of_counters` and `Held.payload_eq` are proved; the inbox
+scenarios of `inbox_tests.rs` and two-chain runs are checked by `decide`.
+Not modelled: checkpoints (`restored_cursor`, `first_index`), rejection
+and bouncing, the `next_expected_events` client-side counter (validity
+uses the event store, `contains_event`).
 
 The multi-height chain layer and the link to per-height consensus (a
 validity predicate that depends on the validator's inbox) come after; they

@@ -28,6 +28,12 @@ checks that every theorem uses only `propext`, `Classical.choice` and
 - `Liveness/Timed/` — timed executions with deadlines, the environment
   (partial synchrony after `GST`, the honest owner's obligations), round
   growth and the liveness theorem (`TExec.Env.liveness`).
-- `LineraTest/` — concrete executions on a four-validator model, checked
+- `Chain/` — cross-chain messages and events: bundles, the two-queue inbox
+  of the implementation and its order-independence theorem
+  (`Inbox.run_eq_canonical`), the ledger, events and streams
+  (`Ledger.Held.payload_eq`), and a validator's view of several chains with
+  the inbox consistency theorem (`Node.inbox_eq_of_counters`).
+- `LineraTest/` — concrete executions on a four-validator model, the inbox
+  scenarios of the implementation's unit tests, and two-chain runs, checked
   by `decide`.
 - `docs/design.md` — plan, design, mapping to the paper, findings.
