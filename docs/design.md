@@ -40,7 +40,7 @@ for each:
 | Thm. liveness | an honest active owner + partial synchrony + no super-owner equivocation ⇒ a block is confirmed | `TExec.Env.liveness` | done |
 | Thm. liveness (owner loop + network) | same, with the owner's loop and a message-delay bound in place of the `Env` obligations | `TExec.OwnerEnv.liveness` | done |
 | §Communication, inbox commutativity | a succeeding sequence of deliveries and consumptions yields an inbox determined by the delivered and consumed sequences alone | `Inbox.run_eq_canonical`, `Inbox.run_eq_of_same_history` | done |
-| §Communication, inbox convergence | validators with the same executed and delivered prefixes have the same inbox | `Node.inbox_eq_of_counters` (eventual form: pending, needs a timed delivery obligation) | partial |
+| §Communication, inbox convergence | validators with the same executed and delivered prefixes have the same inbox; once a sender prefix is stored and deliveries have caught up (within `H · Δ` after `GST`), inboxes agree | `Node.inbox_eq_of_counters`, `Node.inbox_eq_of_settled`, `Node.eventual_inbox_consistency` | done |
 | §Communication, events | validators holding the same event hold the same payload; `UpdateStream` validity monotone in the events held | `Ledger.Held.payload_eq`, `StreamUpdate.Ok.mono` | done |
 
 Out of scope: cross-chain messaging, execution semantics (`Exec`), ownership
@@ -675,11 +675,18 @@ requirement; the properties below are proposed.
   bundles alone, not by their interleaving. This is the precise form of
   "the order in which validators receive messages is irrelevant", with the
   skippable rule as the only subtlety.
-- **Inbox eventual consistency**: two honest validators that hold the same
-  certificates of the sender and have executed the same prefix of the
+- **Inbox eventual consistency** (`Node.inbox_eq_of_settled`,
+  `Node.eventual_inbox_consistency`): two honest validators that store the
+  same blocks of the sender and have executed the same prefix of the
   recipient have the same inbox once their internal deliveries have caught
-  up. Corollary of order-independence plus a delivery obligation on the
-  validator-internal network (reliable by retry; bounded after GST).
+  up (`Node.Settled`: the next height to deliver is not stored). In a timed
+  run with a delivery environment (`Run.Env`: after `GST`, a stored sender
+  block whose turn has come is delivered within `Δ`), deliveries catch up
+  with a stored prefix of `H` blocks within `H · Δ` ticks
+  (`Run.delivered_reaches`), so two validators storing the same `H` blocks
+  of a sender that then stalls have the same inbox from then on. The
+  stall is the quiescence hypothesis of eventual consistency: while the
+  sender keeps growing, each validator's inbox trails its own deliveries.
 - **No forgery, exactly once**: a certified recipient block consuming a
   bundle implies a certified sender block produced it; a bundle is consumed
   at most once. Needs the multi-height chain layer and the honest-signer
@@ -699,12 +706,18 @@ Linera/Chain/Event.lean     streams, publisher log, subscriber counters,
 Linera/Chain/Node.lean      a validator's view of several chains: executed
                             prefixes, inboxes, pending internal deliveries,
                             held events; consistency theorems
+Linera/Chain/Timed.lean     timed runs of the cross-chain layer, the
+                            delivery environment, eventual consistency
 LineraTest/Inbox.lean       the scenarios of inbox_tests.rs, by decide
+LineraTest/Node.lean        two-chain views, by decide
+LineraTest/Timed.lean       a two-chain timed run, by decide
 ```
 
-Status (2026-10-30): all five modules exist and build; `run_eq_canonical`,
-`inbox_eq_of_counters` and `Held.payload_eq` are proved; the inbox
-scenarios of `inbox_tests.rs` and two-chain runs are checked by `decide`.
+Status (2026-10-30): all six modules exist and build; `run_eq_canonical`,
+`inbox_eq_of_counters`, `inbox_eq_of_settled`,
+`eventual_inbox_consistency` and `Held.payload_eq` are proved; the inbox
+scenarios of `inbox_tests.rs`, two-chain runs and a two-chain timed run
+are checked by `decide`.
 Not modelled: checkpoints (`restored_cursor`, `first_index`), rejection
 and bouncing, the `next_expected_events` client-side counter (validity
 uses the event store, `contains_event`).

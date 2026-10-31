@@ -638,9 +638,19 @@ theorem inbox_eq_of_counters {N₁ N₂ : Node Chain Payload} (h₁ : Reach L N�
 
 Validators holding the same certificates agree only once their internal
 deliveries have caught up (delivery is an asynchronous worker-to-worker
-call, retried until acknowledged); that eventual statement needs a timed
-layer with a delivery obligation and is not yet formalized. The
-validator-local validity check of a proposal consuming bundles is
+call, retried until acknowledged). Every height below a delivery counter
+is stored (`Reach.holds_below`), so deliveries from `s` to `r` have
+caught up exactly when the next height to deliver is not stored
+(`Node.Settled`), and then the delivery counters of two validators
+storing the same blocks of `s` coincide:
+
+```lean
+theorem inbox_eq_of_settled {N₁ N₂ : Node Chain Payload} (h₁ : Reach L N₁) (h₂ : Reach L N₂)
+    {r s : Chain} (he : N₁.executed r = N₂.executed r) (hs : ∀ k, N₁.Holds s k ↔ N₂.Holds s k)
+    (hc₁ : N₁.Settled s r) (hc₂ : N₂.Settled s r) : N₁.inboxes r s = N₂.inboxes r s
+```
+
+The validator-local validity check of a proposal consuming bundles is
 `Node.Present` (`must_be_present`):
 
 ```lean
@@ -648,7 +658,64 @@ def Present (N : Node Chain Payload) (c : Chain) (B : Block Chain Stream Payload
   ∀ x ∈ B.incoming, x.2.1 ∈ (N.inboxes c x.1).added
 ```
 
-### 5.3 Events
+### 5.3 Timed runs and eventual consistency
+
+A timed run of the cross-chain layer attempts at most one action per tick
+(an execution, a preprocessing or an internal delivery), applied if
+accepted, as the consensus executions of §4.1 do:
+
+```lean
+structure Run where
+  /-- The view at each tick. -/
+  st : ℕ → Node Chain Payload
+  /-- The action attempted at each tick, if any. -/
+  act : ℕ → Option (Act Chain)
+  /-- The run starts from the initial view. -/
+  zero : st 0 = init
+  /-- Each tick applies the attempted action, if accepted. -/
+  succ : ∀ t, st (t + 1) = stepOpt L (st t) (act t)
+```
+
+The delivery environment is the stabilisation assumption on the
+validator-internal network: after `GST`, a stored sender block whose turn
+has come is delivered within `Δ` ticks.
+
+```lean
+structure Env where
+  /-- The stabilisation time of the validator's internal delivery. -/
+  GST : ℕ
+  /-- The delivery delay bound after `GST`. -/
+  Δ : ℕ
+  /-- A stored sender block whose turn has come is delivered within `Δ`. -/
+  deliver : ∀ t, GST ≤ t → ∀ s r, (ex.st t).Holds s ((ex.st t).delivered s r) →
+    ∃ t', t ≤ t' ∧ t' ≤ t + Δ ∧ (ex.st t).delivered s r < (ex.st t').delivered s r
+```
+
+Deliveries then catch up with a stored prefix of `H` sender blocks within
+`H · Δ` ticks (`Run.delivered_reaches`), and if the block at height `H`
+is never stored the counter stands at exactly `H` from then on
+(`Run.delivered_eq`). The stall is the quiescence hypothesis of eventual
+consistency: while a sender keeps growing, each validator's inbox trails
+its own deliveries.
+
+**Eventual inbox consistency**: two validators that store the first `H`
+blocks of `s` at stabilised ticks and never the block at `H` have the same
+inbox of `r` for `s` at every later tick, past `H · Δ` on each, at which
+they have executed the same prefix of `r`:
+
+```lean
+theorem eventual_inbox_consistency {ex₁ ex₂ : Run L} (env₁ : ex₁.Env) (env₂ : ex₂.Env)
+    {s r : Chain} {H T₁ T₂ : ℕ}
+    (hT₁ : env₁.GST ≤ T₁) (hb₁ : ∀ h < H, (ex₁.st T₁).Holds s h)
+    (hs₁ : ∀ t, T₁ ≤ t → ¬ (ex₁.st t).Holds s H)
+    (hT₂ : env₂.GST ≤ T₂) (hb₂ : ∀ h < H, (ex₂.st T₂).Holds s h)
+    (hs₂ : ∀ t, T₂ ≤ t → ¬ (ex₂.st t).Holds s H) :
+    ∀ t, T₁ + H * env₁.Δ ≤ t → T₂ + H * env₂.Δ ≤ t →
+      (ex₁.st t).executed r = (ex₂.st t).executed r →
+      (ex₁.st t).inboxes r s = (ex₂.st t).inboxes r s
+```
+
+### 5.4 Events
 
 A stream's events are indexed contiguously by the publisher chain's blocks
 (`Ledger.countBefore`); a validator holds an event once it stores the
@@ -679,5 +746,7 @@ For the cross-chain layer: the multi-height chain built from the
 per-height consensus (the ledger is a parameter, justified by `safety`);
 the link between `Node.Present` and the consensus validity predicate,
 hence no-forgery and exactly-once consumption across validators; the
-eventual form of inbox consistency; checkpoints and the readable floor of
-streams; message rejection, bouncing and tracked receipts; blobs.
+delivery of certificates themselves between validators (the ledger is
+shared, and each validator stores blocks at times of the adversary's
+choosing); checkpoints and the readable floor of streams; message
+rejection, bouncing and tracked receipts; blobs.

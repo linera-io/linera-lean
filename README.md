@@ -31,8 +31,10 @@ checks that every theorem uses only `propext`, `Classical.choice` and
 - `Chain/` — cross-chain messages and events: bundles, the two-queue inbox
   of the implementation and its order-independence theorem
   (`Inbox.run_eq_canonical`), the ledger, events and streams
-  (`Ledger.Held.payload_eq`), and a validator's view of several chains with
-  the inbox consistency theorem (`Node.inbox_eq_of_counters`).
+  (`Ledger.Held.payload_eq`), a validator's view of several chains with
+  the inbox consistency theorem (`Node.inbox_eq_of_counters`), and timed
+  runs with the eventual inbox consistency theorem
+  (`Node.eventual_inbox_consistency`).
 - `LineraTest/` — concrete executions on a four-validator model, the inbox
   scenarios of the implementation's unit tests, and two-chain runs, checked
   by `decide`.
