@@ -733,6 +733,77 @@ at a validator (`system.rs`: subscribed with a recorded index below
 `next`, and event `next − 1` held), monotone in the events held
 (`StreamUpdate.Ok.mono`).
 
+### 5.5 No forgery and exactly once
+
+A validator accepts a proposal consuming bundles only if they are in its
+inbox and are consumed in order (`remove_bundles_from_inboxes` with
+`must_be_present`):
+
+```lean
+def Accepts (N : Node Chain Payload) (c : Chain) (B : Block Chain Stream Payload) : Prop :=
+  N.Present c B ∧ ∀ s, ((N.inboxes c s).run ((B.consumedFrom s).map Inbox.Op.remove)).isSome
+```
+
+A ledger is *accepted* when every block of it passed this check at some
+reachable view of a validator with the chain executed up to its height:
+
+```lean
+def Accepted : Prop :=
+  ∀ c h B, L c h = some B →
+    ∃ N : Node Chain Payload, Node.Reach L N ∧ N.executed c = h ∧ N.Accepts c B
+```
+
+**No forgery**: a bundle consumed by a certified block was sent by a
+certified block of its sender. Every bundle in an inbox came from the
+canonical delivered sequence, hence from a block of the ledger.
+
+```lean
+theorem no_forgery (hA : L.Accepted) {r : Chain} {h : ℕ} {B : Block Chain Stream Payload}
+    (hB : L r h = some B) {x : Chain × Bundle Payload × MessageAction} (hx : x ∈ B.incoming) :
+    ∃ k Bs, L x.1 k = some Bs ∧ (r, x.2.1) ∈ Bs.outgoing
+```
+
+**Exactly once**: the consumption sequence of a recipient from a sender
+has strictly increasing cursors up to any certified height
+(`Ledger.removesUpTo_sorted`, from `Inbox.sorted_removes`), so a bundle is
+consumed by at most one certified block of its recipient, and once in it
+(`Ledger.receivesFrom_nodup`).
+
+```lean
+theorem exactly_once (hA : L.Accepted) {r s : Chain} {h₁ h₂ : ℕ}
+    {B₁ B₂ : Block Chain Stream Payload} (hB₁ : L r h₁ = some B₁) (hB₂ : L r h₂ = some B₂)
+    {b : Bundle Payload} (hb₁ : b ∈ L.receivesFrom r s h₁) (hb₂ : b ∈ L.receivesFrom r s h₂) :
+    h₁ = h₂
+```
+
+**The link to consensus.** A confirmation certificate rests on an honest
+vote, which answered a proposal that passed the validity check, in the
+fast round as in the others:
+
+```lean
+theorem confCert_valid {B : Block} {r : Round} (h : s.ConfCert B r) : cfg.Valid B
+```
+
+If every height of every chain is decided by a consensus instance whose
+validity predicate implies the cross-chain check at a reachable view, and
+the ledger records only confirmed blocks, the ledger is accepted:
+
+```lean
+theorem accepted_of_confirmed (cfg : Chain → ℕ → Config Owner (Block Chain Stream Payload))
+    (st : Chain → ℕ → State V Owner (Block Chain Stream Payload))
+    (hreach : ∀ c h, Reachable (cfg c h) (st c h))
+    (hvalid : ∀ c h B, (cfg c h).Valid B →
+      ∃ N : Node Chain Payload, Node.Reach L N ∧ N.executed c = h ∧ N.Accepts c B)
+    (hconf : ∀ c h B, L c h = some B → ∃ r, (st c h).ConfCert B r) : L.Accepted
+```
+
+The consensus model has one validity predicate per instance while the
+cross-chain check is validator-local. The intended instantiation is the
+weakest global predicate implied by every honest local check, the
+existential in `hvalid`; only safety is claimed through it. Liveness with
+local checks, where a proposal is valid at some validators and not yet at
+others because their deliveries lag, is not modelled.
+
 ## 6. What is not covered
 
 The validator fallback rounds and
@@ -742,11 +813,11 @@ rounds; the unlocking-round attestation; the owner's behaviour in
 multi-leader rounds (the obligation `leave_multi`); and an explicit
 message layer below the delivery bound `deliver`.
 
-For the cross-chain layer: the multi-height chain built from the
-per-height consensus (the ledger is a parameter, justified by `safety`);
-the link between `Node.Present` and the consensus validity predicate,
-hence no-forgery and exactly-once consumption across validators; the
-delivery of certificates themselves between validators (the ledger is
-shared, and each validator stores blocks at times of the adversary's
-choosing); checkpoints and the readable floor of streams; message
-rejection, bouncing and tracked receipts; blobs.
+For the cross-chain layer: the ledger is a parameter, linked to one
+consensus instance per chain and height under the hypothesis that it
+records only confirmed blocks (`accepted_of_confirmed`); a
+validator-local validity predicate inside the consensus model, needed for
+cross-chain liveness; the delivery of certificates themselves between
+validators (the ledger is shared, and each validator stores blocks at
+times of the adversary's choosing); checkpoints and the readable floor of
+streams; message rejection, bouncing and tracked receipts; blobs.

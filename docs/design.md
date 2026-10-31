@@ -40,6 +40,7 @@ for each:
 | Thm. liveness | an honest active owner + partial synchrony + no super-owner equivocation ⇒ a block is confirmed | `TExec.Env.liveness` | done |
 | Thm. liveness (owner loop + network) | same, with the owner's loop and a message-delay bound in place of the `Env` obligations | `TExec.OwnerEnv.liveness` | done |
 | §Communication, inbox commutativity | a succeeding sequence of deliveries and consumptions yields an inbox determined by the delivered and consumed sequences alone | `Inbox.run_eq_canonical`, `Inbox.run_eq_of_same_history` | done |
+| §Communication, no forgery / exactly once | a bundle consumed by a certified block was sent by a certified block of its sender; a bundle is consumed by at most one certified recipient block, once | `Ledger.no_forgery`, `Ledger.exactly_once`, `Ledger.receivesFrom_nodup`; from consensus via `Ledger.accepted_of_confirmed` and `confCert_valid` | done |
 | §Communication, inbox convergence | validators with the same executed and delivered prefixes have the same inbox; once a sender prefix is stored and deliveries have caught up (within `H · Δ` after `GST`), inboxes agree | `Node.inbox_eq_of_counters`, `Node.inbox_eq_of_settled`, `Node.eventual_inbox_consistency` | done |
 | §Communication, events | validators holding the same event hold the same payload; `UpdateStream` validity monotone in the events held | `Ledger.Held.payload_eq`, `StreamUpdate.Ok.mono` | done |
 
@@ -687,10 +688,23 @@ requirement; the properties below are proposed.
   of a sender that then stalls have the same inbox from then on. The
   stall is the quiescence hypothesis of eventual consistency: while the
   sender keeps growing, each validator's inbox trails its own deliveries.
-- **No forgery, exactly once**: a certified recipient block consuming a
+- **No forgery, exactly once** (`Ledger.no_forgery`, `Ledger.exactly_once`,
+  `Ledger.receivesFrom_nodup`): a certified recipient block consuming a
   bundle implies a certified sender block produced it; a bundle is consumed
-  at most once. Needs the multi-height chain layer and the honest-signer
-  argument with a validator-local validity predicate.
+  by at most one certified recipient block, and once in it. Both follow
+  from `Ledger.Accepted`: every block of the ledger passed the
+  validator-local check `Node.Accepts` (bundles present, consumed in
+  order) at some reachable view with the chain executed up to its height.
+  `Ledger.accepted_of_confirmed` derives `Accepted` from per-height
+  consensus instances whose validity predicate implies that check, using
+  the new consensus fact `confCert_valid` (a confirmed block passed an
+  honest validity check; the fast-round ghost `fast_elig` now records
+  validity). The consensus model has one validity predicate per instance
+  while the real check is validator-local; the intended instantiation is
+  the weakest global predicate implied by every honest local check, and
+  only safety is claimed through it. Liveness with local checks (a
+  proposal valid at some validators and not yet at others, because of
+  inbox lag) is not modelled.
 - **Event availability and consistency**: the events a validator holds for a
   stream form a prefix determined by the publisher chain; `UpdateStream`
   validity is monotone in what the validator holds.
@@ -708,20 +722,27 @@ Linera/Chain/Node.lean      a validator's view of several chains: executed
                             held events; consistency theorems
 Linera/Chain/Timed.lean     timed runs of the cross-chain layer, the
                             delivery environment, eventual consistency
+Linera/Chain/Certified.lean the validator-local check Accepts, accepted
+                            ledgers, no forgery, exactly once, the link
+                            to per-height consensus
 LineraTest/Inbox.lean       the scenarios of inbox_tests.rs, by decide
 LineraTest/Node.lean        two-chain views, by decide
 LineraTest/Timed.lean       a two-chain timed run, by decide
 ```
 
-Status (2026-10-30): all six modules exist and build; `run_eq_canonical`,
+Status (2026-10-30): all seven modules exist and build; `run_eq_canonical`,
 `inbox_eq_of_counters`, `inbox_eq_of_settled`,
-`eventual_inbox_consistency` and `Held.payload_eq` are proved; the inbox
-scenarios of `inbox_tests.rs`, two-chain runs and a two-chain timed run
-are checked by `decide`.
+`eventual_inbox_consistency`, `Held.payload_eq`, `no_forgery`,
+`exactly_once` and `accepted_of_confirmed` are proved; the inbox
+scenarios of `inbox_tests.rs`, two-chain runs, a two-chain timed run and
+the acceptance check are checked by `decide`.
 Not modelled: checkpoints (`restored_cursor`, `first_index`), rejection
 and bouncing, the `next_expected_events` client-side counter (validity
 uses the event store, `contains_event`).
 
-The multi-height chain layer and the link to per-height consensus (a
-validity predicate that depends on the validator's inbox) come after; they
-reopen the liveness proofs and are tracked separately.
+The ledger stays a parameter: `accepted_of_confirmed` links it to one
+consensus instance per chain and height under the hypothesis that it
+records only confirmed blocks. A validator-local validity predicate inside
+the consensus model (needed for cross-chain liveness, not for the safety
+results above) would reopen the liveness proofs and is tracked
+separately.

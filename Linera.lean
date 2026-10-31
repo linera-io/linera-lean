@@ -22,3 +22,4 @@ import Linera.Chain.Block
 import Linera.Chain.Event
 import Linera.Chain.Node
 import Linera.Chain.Timed
+import Linera.Chain.Certified

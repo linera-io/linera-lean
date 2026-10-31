@@ -130,7 +130,22 @@ answers a proposal by the super owner. -/
 theorem fast_vote_of_super {e : Sig V Owner Block} (he : e ∈ s.log) (hv : e.signer ∈ Q.honest)
     {B : Block} {r : Round} (hm : e.msg = .conf B r) (hf : cfg.IsFast r) :
     ∃ P, e.prop = some P ∧ P.block = B ∧ P.round = r ∧ cfg.FastEligible r P.owner :=
-  ((Inv.reachable hr) e.signer hv).fast_elig e he rfl B r hm hf
+  let ⟨P, h₁, h₂, h₃, h₄, _⟩ := ((Inv.reachable hr) e.signer hv).fast_elig e he rfl B r hm hf
+  ⟨P, h₁, h₂, h₃, h₄⟩
+
+/-- **Confirmed blocks are valid**: a confirmation certificate rests on an
+honest vote, which answered a proposal that passed the validity check
+(`O = Exec(B)` and the structural checks, among them the cross-chain
+check of `Chain/Certified.lean`). -/
+theorem confCert_valid {B : Block} {r : Round} (h : s.ConfCert B r) : cfg.Valid B := by
+  have hs := Inv.reachable hr
+  by_cases hf : cfg.IsFast r
+  · obtain ⟨v, hv, e, he, hsig, hmsg⟩ := h.exists_honest_HSig
+    obtain ⟨P, -, rfl, -, -, hval⟩ := (hs v hv).fast_elig e he hsig B r hmsg hf
+    exact hval
+  · obtain ⟨v, hv, e, he, hsig, hmsg⟩ := (hs.valCert_of_confCert h hf).exists_honest_HSig
+    obtain ⟨P, -, rfl, -, -, hval⟩ := ((hs v hv).val_ghost e he hsig B r hmsg).prop_elig
+    exact hval
 
 /-- **Lock safety at validation** (paper, Lemma lock-validate): an honest
 validation vote for `B'` in `r` cast while locked on `(B, r_ℓ)` with

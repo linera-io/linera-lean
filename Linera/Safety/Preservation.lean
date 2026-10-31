@@ -371,7 +371,7 @@ theorem VInv.sign_conf {cfg : Config Owner Block} {s : State V Owner Block} {v :
     (hlble : ∀ lb ∈ (s.locals v).lb, lb.round < r)
     (hvcert : ¬ cfg.IsFast r → s.ValCert B r)
     (hpr : cfg.IsFast r → ∃ P, pr = some P ∧ P.block = B ∧ P.round = r ∧
-      cfg.FastEligible r P.owner) :
+      cfg.FastEligible r P.owner ∧ cfg.Valid P.block) :
     VInv cfg ((s.set v l').sign ⟨v, .conf B r, (s.locals v).lock, pr⟩) v := by
   obtain ⟨e, he⟩ : ∃ e : Sig V Owner Block, e = ⟨v, .conf B r, (s.locals v).lock, pr⟩ := ⟨_, rfl⟩
   obtain ⟨s', hs'⟩ : ∃ s', s' = (s.set v l').sign e := ⟨_, rfl⟩
@@ -517,13 +517,13 @@ theorem Inv.step {cfg : Config Owner Block} {s s' : State V Owner Block} (hs : I
     split_ifs at h with hf hok hpre hacc
     · -- fast path
       simp only [Option.some.injEq] at h; subst h
-      obtain ⟨_, hfe, _, _, hvv, hlb, hlk⟩ := hok
+      obtain ⟨_, hfe, hvalid, _, hvv, hlb, hlk⟩ := hok
       have hr0 : P.round = 0 := hf.2
       refine frame_sign _ _ rfl (hvi.sign_conf (some P) (lbNew := .fast P.block) rfl rfl rfl
         (by simp [Locking.round, hr0]) (fun _ _ h => by cases h) (fun _ h => by cases h; rfl) rfl
         rfl (le_max_left _ _)
         (le_max_right _ _) rfl ?_ ?_ (fun hnf => absurd hf hnf)
-        (fun _ => ⟨P, rfl, rfl, rfl, hfe⟩))
+        (fun _ => ⟨P, rfl, rfl, rfl, hfe, hvalid⟩))
       · intro vv hvv'; rw [hvv] at hvv'; exact absurd hvv' (Option.not_mem_none _)
       · intro lb hlb'; rw [hlb] at hlb'; exact absurd hlb' (Option.not_mem_none _)
     · -- two-phase proposal, validated

@@ -32,9 +32,12 @@ checks that every theorem uses only `propext`, `Classical.choice` and
   of the implementation and its order-independence theorem
   (`Inbox.run_eq_canonical`), the ledger, events and streams
   (`Ledger.Held.payload_eq`), a validator's view of several chains with
-  the inbox consistency theorem (`Node.inbox_eq_of_counters`), and timed
+  the inbox consistency theorem (`Node.inbox_eq_of_counters`), timed
   runs with the eventual inbox consistency theorem
-  (`Node.eventual_inbox_consistency`).
+  (`Node.eventual_inbox_consistency`), and accepted ledgers with no
+  forgery and exactly-once consumption (`Ledger.no_forgery`,
+  `Ledger.exactly_once`), linked to the per-height consensus
+  (`Ledger.accepted_of_confirmed`).
 - `LineraTest/` — concrete executions on a four-validator model, the inbox
   scenarios of the implementation's unit tests, and two-chain runs, checked
   by `decide`.

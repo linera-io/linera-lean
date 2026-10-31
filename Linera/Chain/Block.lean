@@ -30,6 +30,16 @@ structure Block (Chain Stream Payload : Type*) where
   /-- The events emitted, per stream, in order. -/
   events : Stream → List Payload
 
+namespace Block
+
+variable {Chain Stream Payload : Type*} [DecidableEq Chain]
+
+/-- The bundles `B` consumes from sender `s`, in order. -/
+def consumedFrom (B : Block Chain Stream Payload) (s : Chain) : List (Bundle Payload) :=
+  (B.incoming.filter (fun x => decide (x.1 = s))).map (·.2.1)
+
+end Block
+
 /-- The ledger: the certified block of each chain at each height, if any. -/
 abbrev Ledger (Chain Stream Payload : Type*) := Chain → ℕ → Option (Block Chain Stream Payload)
 
@@ -47,8 +57,12 @@ def sendsTo (s r : Chain) (h : ℕ) : List (Bundle Payload) :=
 /-- The bundles consumed by chain `r` at height `h` from sender `s`. -/
 def receivesFrom (r s : Chain) (h : ℕ) : List (Bundle Payload) :=
   match L r h with
-  | some B => (B.incoming.filter (fun x => decide (x.1 = s))).map (·.2.1)
+  | some B => B.consumedFrom s
   | none => []
+
+theorem receivesFrom_of_some {r : Chain} {h : ℕ} {B : Block Chain Stream Payload}
+    (hB : L r h = some B) (s : Chain) : L.receivesFrom r s h = B.consumedFrom s := by
+  simp [receivesFrom, hB]
 
 /-- The bundles sent by `s` to `r` in heights below `n`, in order. -/
 def addsUpTo (s r : Chain) (n : ℕ) : List (Bundle Payload) :=
@@ -69,7 +83,7 @@ theorem removesUpTo_succ (r s : Chain) (n : ℕ) :
 /-- A block consumes nothing from a sender absent from its incoming list. -/
 theorem receivesFrom_eq_nil {r s : Chain} {h : ℕ} {B : Block Chain Stream Payload}
     (hB : L r h = some B) (hs : ∀ x ∈ B.incoming, x.1 ≠ s) : L.receivesFrom r s h = [] := by
-  simp only [receivesFrom, hB, List.map_eq_nil_iff, List.filter_eq_nil_iff]
+  simp only [receivesFrom, hB, Block.consumedFrom, List.map_eq_nil_iff, List.filter_eq_nil_iff]
   intro x hx
   simpa using hs x hx
 

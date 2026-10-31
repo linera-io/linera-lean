@@ -90,9 +90,10 @@ structure VInv (cfg : Config Owner Block) (s : State V Owner Block) (v : V) : Pr
   lock_fast : ∀ lk ∈ (s.locals v).lock, ∀ B', (s.locals v).lb = some (.fast B') → lk.1 = B'
   /-- Every validation vote carries its ghost justification. -/
   val_ghost : ∀ e ∈ s.log, e.signer = v → ∀ B r, e.msg = .val B r → ValGhost cfg s v e B r
-  /-- A confirmation vote in the fast round answered a proposal by the super owner. -/
+  /-- A confirmation vote in the fast round answered a valid proposal by the super owner. -/
   fast_elig : ∀ e ∈ s.log, e.signer = v → ∀ B r, e.msg = .conf B r → cfg.IsFast r →
-    ∃ P, e.prop = some P ∧ P.block = B ∧ P.round = r ∧ cfg.FastEligible r P.owner
+    ∃ P, e.prop = some P ∧ P.block = B ∧ P.round = r ∧ cfg.FastEligible r P.owner ∧
+      cfg.Valid P.block
   /-- A finalized block has a confirmation certificate. -/
   finalized_cert : ∀ B, (s.locals v).finalized = some B → ∃ r, s.ConfCert B r
 

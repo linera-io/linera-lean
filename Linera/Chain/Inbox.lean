@@ -465,16 +465,13 @@ theorem run_eq_of_same_history {ops₁ ops₂ : List (Op Payload)} {I₁ I₂ : 
     (ha : adds ops₁ = adds ops₂) (hr : removes ops₁ = removes ops₂) : I₁ = I₂ := by
   rw [run_eq_canonical h₁, run_eq_canonical h₂, ha, hr]
 
-/-- The delivered bundles of a succeeding run have strictly increasing cursors. -/
-theorem sorted_adds {ops : List (Op Payload)} {I : Inbox Payload}
-    (h : init.run ops = some I) : Sorted (adds ops) := by
-  suffices ∀ {A R : List (Bundle Payload)}, Sorted A → Sorted R → ∀ {I : Inbox Payload},
-      (canonical A R).run ops = some I → Sorted (A ++ adds ops) by
-    simpa using this (A := []) (R := []) List.Pairwise.nil List.Pairwise.nil
-      (by rw [canonical_nil_nil]; exact h)
-  clear h I
+/-- Along a succeeding run from a canonical inbox with sorted histories,
+the delivered and the consumed sequences stay sorted. -/
+theorem run_sorted (ops : List (Op Payload)) : ∀ {A R : List (Bundle Payload)},
+    Sorted A → Sorted R → ∀ {I : Inbox Payload}, (canonical A R).run ops = some I →
+    Sorted (A ++ adds ops) ∧ Sorted (R ++ removes ops) := by
   induction ops with
-  | nil => intro A R hA _ I _; simpa [adds] using hA
+  | nil => intro A R hA hR I _; simpa [adds, removes] using And.intro hA hR
   | cons op rest ih =>
     intro A R hA hR I h
     simp only [run, Option.bind_eq_some_iff] at h
@@ -482,10 +479,24 @@ theorem sorted_adds {ops : List (Op Payload)} {I : Inbox Payload}
     cases op with
     | add b =>
       obtain ⟨hb, rfl⟩ := add_canonical hR h₁
-      simpa [adds, List.append_assoc] using ih (hA.append_singleton hb) hR h₂
+      simpa [adds, removes, List.append_assoc] using ih (hA.append_singleton hb) hR h₂
     | remove b =>
       obtain ⟨hb, rfl⟩ := remove_canonical hA h₁
-      simpa [adds] using ih hA (hR.append_singleton hb) h₂
+      simpa [adds, removes, List.append_assoc] using ih hA (hR.append_singleton hb) h₂
+
+/-- The delivered bundles of a succeeding run have strictly increasing cursors. -/
+theorem sorted_adds {ops : List (Op Payload)} {I : Inbox Payload}
+    (h : init.run ops = some I) : Sorted (adds ops) := by
+  have := run_sorted ops (A := []) (R := []) List.Pairwise.nil List.Pairwise.nil
+    (by rw [canonical_nil_nil]; exact h)
+  simpa using this.1
+
+/-- The consumed bundles of a succeeding run have strictly increasing cursors. -/
+theorem sorted_removes {ops : List (Op Payload)} {I : Inbox Payload}
+    (h : init.run ops = some I) : Sorted (removes ops) := by
+  have := run_sorted ops (A := []) (R := []) List.Pairwise.nil List.Pairwise.nil
+    (by rw [canonical_nil_nil]; exact h)
+  simpa using this.2
 
 end Ops
 

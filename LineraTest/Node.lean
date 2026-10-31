@@ -1,4 +1,4 @@
-import Linera.Chain.Node
+import Linera.Chain.Certified
 
 /-!
 # Node witnesses
@@ -37,5 +37,17 @@ theorem inbox_after :
 
 /-- Delivery before the sender block is stored is refused. -/
 theorem deliver_needs_block : Node.deliver L Node.init 0 1 = none := by decide
+
+/-- The block of chain `1`. -/
+def B₁ : Block (Fin 2) (Fin 1) ℕ := ⟨[(0, b₀, .accept)], [], fun _ => []⟩
+
+/-- The view after executing chain `0` and delivering to chain `1`. -/
+def delivered : Node (Fin 2) ℕ :=
+  ((Node.execute L Node.init 0).bind fun N => Node.deliver L N 0 1).getD Node.init
+
+/-- Chain `1`'s block passes the cross-chain check once `b₀` is delivered, and not before. -/
+theorem accepts_iff_delivered : delivered.Accepts 1 B₁ ∧ ¬ Node.init.Accepts 1 B₁ := by
+  unfold Node.Accepts Node.Present
+  decide
 
 end LineraTest
